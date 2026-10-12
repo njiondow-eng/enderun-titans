@@ -33,14 +33,17 @@ const TitansLogo = ({ size = 48 }) => (
 
 // ─── Seed Data ───
 const PLAYERS = [
-  { id:1, name:"Marcus Dela Cruz", jersey:3, pos:"PG", yr:"3rd Year", height:'6\'1"', weight:"175 lbs", gpa:3.4, status:"Active", pts:18.2, reb:4.1, ast:7.3, fg:44.2, threept:36.1, ft:82.4, gp:18, stl:1.8, blk:0.3, to:2.4, photo:"MD" },
-  { id:2, name:"James Reyes", jersey:11, pos:"SG", yr:"4th Year", height:'6\'3"', weight:"185 lbs", gpa:3.1, status:"Active", pts:15.7, reb:3.8, ast:2.9, fg:41.5, threept:38.7, ft:78.1, gp:18, stl:1.2, blk:0.5, to:1.7, photo:"JR" },
-  { id:3, name:"Carlo Santos", jersey:24, pos:"SF", yr:"2nd Year", height:'6\'5"', weight:"200 lbs", gpa:2.9, status:"Active", pts:12.4, reb:6.2, ast:2.1, fg:48.3, threept:28.4, ft:68.9, gp:16, stl:1.1, blk:1.2, to:2.1, photo:"CS" },
-  { id:4, name:"Rafael Torres", jersey:32, pos:"PF", yr:"3rd Year", height:'6\'7"', weight:"218 lbs", gpa:3.6, status:"Active", pts:11.1, reb:8.9, ast:1.4, fg:52.1, threept:22.2, ft:71.3, gp:18, stl:0.7, blk:2.1, to:1.8, photo:"RT" },
-  { id:5, name:"Andrei Villanueva", jersey:45, pos:"C", yr:"4th Year", height:'6\'9"', weight:"240 lbs", gpa:3.2, status:"Active", pts:9.8, reb:10.2, ast:1.0, fg:58.7, threept:0.0, ft:62.1, gp:17, stl:0.4, blk:3.2, to:1.5, photo:"AV" },
-  { id:6, name:"Paolo Mendez", jersey:7, pos:"SG", yr:"2nd Year", height:'6\'2"', weight:"178 lbs", gpa:3.0, status:"Injured", pts:8.3, reb:2.4, ast:3.1, fg:39.2, threept:33.3, ft:76.5, gp:12, stl:1.5, blk:0.2, to:1.9, photo:"PM" },
-  { id:7, name:"Luis Castillo", jersey:13, pos:"PG", yr:"1st Year", height:'5\'11"', weight:"163 lbs", gpa:3.8, status:"Active", pts:6.4, reb:1.8, ast:4.2, fg:38.1, threept:31.0, ft:80.0, gp:15, stl:1.3, blk:0.1, to:2.7, photo:"LC" },
-  { id:8, name:"Nico Garcia", jersey:21, pos:"PF", yr:"3rd Year", height:'6\'6"', weight:"210 lbs", gpa:2.7, status:"Active", pts:7.9, reb:5.5, ast:1.2, fg:45.8, threept:18.2, ft:65.4, gp:18, stl:0.6, blk:1.4, to:1.3, photo:"NG" },
+  { id:1, name:"Miekho Joush M. Natinga", jersey:1, pos:"SG", yr:"1st Year", height:"5'10\"", weight:"78 kg", dob:"2006", birthplace:"Malaybalay City, Bukidnon", nationality:"Filipino", course:"BS IHM", phone:"09944829504", email:"miekho082106@gmail.com", gpa:3.0, status:"Active", pts:8.4, reb:3.1, ast:2.9, fg:38.2, threept:31.0, ft:74.0, gp:10, stl:1.2, blk:0.2, to:1.8, photo:"MN" },
+  { id:2, name:"Chance Barnard", jersey:2, pos:"PF", yr:"Grade 11", height:"6'5\"", weight:"94 kg", dob:"06/23/2008", birthplace:"Abidjan", nationality:"Ivorian", course:"ABM", phone:"09151375112", email:"Chancebarnard55@gmail.com", gpa:3.0, status:"Active", pts:14.2, reb:8.7, ast:1.4, fg:51.3, threept:22.0, ft:68.5, gp:10, stl:0.8, blk:2.1, to:1.6, photo:"CB" },
+  { id:3, name:"Juan Luis Alessandro F. Aguilar", jersey:3, pos:"PF", yr:"Grade 12", height:"6'6\"", weight:"90 kg", dob:"8/31/2008", birthplace:"Angeles City, Pampanga", nationality:"Filipino", course:"Grade 12 ABM", phone:"09190758364", email:"jlaguilarftw@gmail.com", gpa:3.0, status:"Active", pts:12.1, reb:7.4, ast:1.8, fg:48.9, threept:19.5, ft:71.2, gp:10, stl:0.6, blk:1.8, to:2.0, photo:"JA" },
+  { id:4, name:"Albert Clifford Jay Libago", jersey:4, pos:"C", yr:"4th Year", height:"6'5\"", weight:"100 kg", dob:"", birthplace:"Poblacion Mambajao, Camiguin Island", nationality:"Filipino", course:"BS IHM HA", phone:"09565509436", email:"albert.libago@enderuncolleges.com", gpa:3.0, status:"Active", pts:10.8, reb:9.2, ast:1.0, fg:55.4, threept:0.0, ft:63.1, gp:10, stl:0.5, blk:2.8, to:1.5, photo:"AL" },
+  { id:5, name:"Byron Legaspi", jersey:5, pos:"SG", yr:"AY 2026-2027", height:"5'11\"", weight:"82 kg", dob:"October 6, 2006", birthplace:"Muntinlupa", nationality:"Filipino", course:"BS Entrepreneurship", phone:"09604564917", email:"justin.legaspi@enderuncolleges.com", gpa:3.0, status:"Active", pts:9.3, reb:3.5, ast:3.2, fg:40.1, threept:34.2, ft:77.8, gp:10, stl:1.4, blk:0.3, to:2.1, photo:"BL" },
+  { id:6, name:"Carlos Jake Villava-Cua Garcia", jersey:6, pos:"SF", yr:"Sophomore", height:"6'2\"", weight:"81 kg", dob:"December 3, 2005", birthplace:"United Kingdom", nationality:"Filipino/British", course:"BSIHM HA", phone:"09295426898", email:"carlocio8912@gmail.com", gpa:3.0, status:"Active", pts:11.5, reb:5.1, ast:2.4, fg:43.7, threept:30.5, ft:75.3, gp:10, stl:1.1, blk:0.7, to:1.9, photo:"CG" },
+  { id:7, name:"Cyrus Neal Bernardo Ferrer", jersey:7, pos:"PG", yr:"3rd Year", height:"5'11\"", weight:"81 kg", dob:"February 8, 2003", birthplace:"Mandaluyong City", nationality:"Filipino", course:"BSBA Marketing Management", phone:"09151788653", email:"cyrusnealferrer0088@gmail.com", gpa:3.0, status:"Active", pts:13.7, reb:3.8, ast:5.9, fg:41.2, threept:35.8, ft:80.4, gp:10, stl:1.7, blk:0.2, to:2.3, photo:"CF" },
+  { id:8, name:"Aeron Lloyd F. Luague", jersey:8, pos:"PG", yr:"1st Year", height:"6'1\"", weight:"78 kg", dob:"February 1, 2008", birthplace:"Davao City", nationality:"Filipino", course:"BS IHM", phone:"09709117698", email:"aeron.luague@enderuncolleges.com", gpa:3.0, status:"Active", pts:7.6, reb:2.9, ast:4.1, fg:37.5, threept:29.8, ft:72.1, gp:10, stl:1.3, blk:0.1, to:2.5, photo:"AL" },
+  { id:9, name:"Zachary Angelo G. Dionela", jersey:9, pos:"SF", yr:"3rd Year", height:"6'3\"", weight:"85 kg", dob:"03/15/2005", birthplace:"Bacolod City", nationality:"Filipino", course:"BSBA MM", phone:"09456051234", email:"zachary.dionela@enderuncolleges.com", gpa:3.0, status:"Active", pts:10.2, reb:5.8, ast:2.1, fg:44.6, threept:32.1, ft:76.9, gp:10, stl:1.0, blk:0.9, to:1.7, photo:"ZD" },
+  { id:10, name:"Frank Nero Rubang", jersey:10, pos:"PF", yr:"2nd Year", height:"6'2\"", weight:"90 kg", dob:"October 22, 2006", birthplace:"Rosario, Cervantes, Ilocos Sur", nationality:"Filipino", course:"BSIHM", phone:"09513485713", email:"frankneronero60@gmail.com", gpa:3.0, status:"Active", pts:9.0, reb:6.3, ast:1.5, fg:46.2, threept:20.4, ft:68.7, gp:10, stl:0.7, blk:1.3, to:1.8, photo:"FR" },
+  { id:11, name:"Gabe Howe", jersey:11, pos:"SG", yr:"1st Year", height:"5'10\"", weight:"82 kg", dob:"03/26/2003", birthplace:"Las Vegas, NV", nationality:"Filipino", course:"BS IHM", phone:"+1 702-683-2407", email:"Gabe_Howe@outlook.com", gpa:3.0, status:"Active", pts:11.8, reb:3.4, ast:2.7, fg:42.3, threept:37.5, ft:81.2, gp:10, stl:1.5, blk:0.4, to:1.6, photo:"GH" },
 ];
 
 const GAMES = [
@@ -307,12 +310,17 @@ function PlayerProfile({ player:p, onBack }) {
             <div style={{ color:BRAND.textSecondary, fontSize:13 }}>{p.pos} · #{p.jersey}</div>
             <span style={{ ...S.pill(p.status), marginTop:8, display:"inline-block" }}>{p.status}</span>
             <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, textAlign:"left" }}>
-              {[["Year",p.yr],["Height",p.height],["Weight",p.weight],["GPA",p.gpa]].map(([l,v])=>(
+              {[["Year",p.yr],["Height",p.height],["Weight",p.weight],["Nationality",p.nationality],["Course",p.course],["Birthplace",p.birthplace]].map(([l,v])=>(
                 <div key={l} style={{ background:BRAND.charcoal, borderRadius:8, padding:"10px 12px" }}>
                   <div style={{ fontSize:10, color:BRAND.textSecondary, textTransform:"uppercase", letterSpacing:"0.06em" }}>{l}</div>
-                  <div style={{ fontSize:14, fontWeight:600, color:BRAND.textPrimary, marginTop:2 }}>{v}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color:BRAND.textPrimary, marginTop:2 }}>{v}</div>
                 </div>
               ))}
+            </div>
+            <div style={{ marginTop:12, background:BRAND.charcoal, borderRadius:8, padding:"10px 12px" }}>
+              <div style={{ fontSize:10, color:BRAND.textSecondary, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Contact</div>
+              <div style={{ fontSize:12, color:BRAND.textPrimary }}>📞 {p.phone}</div>
+              <div style={{ fontSize:11, color:BRAND.textSecondary, marginTop:4, wordBreak:"break-all" }}>✉️ {p.email}</div>
             </div>
           </div>
         </div>
