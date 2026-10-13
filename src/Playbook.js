@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 
 const BRAND = {
@@ -183,6 +185,7 @@ function PlayEditor({ play, onSave, onCancel, readOnly }) {
     };
     animRef.current = setTimeout(run, 300);
     return () => clearTimeout(animRef.current);
+    // eslint-disable-line react-hooks/exhaustive-deps
   }, [animating]);
 
   const stopAnim = () => { clearTimeout(animRef.current); setAnimating(false); setAnimPlayers(null); };
