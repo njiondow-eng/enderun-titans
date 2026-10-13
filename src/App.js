@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Playbook from "./Playbook";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts";
 
 const BRAND = {
   crimson:"#9B1C1C", crimsonDark:"#6B0F0F", crimsonLight:"#C53030",
