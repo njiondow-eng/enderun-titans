@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts";
 import { supabase } from "./supabaseClient";
 import Playbook from "./Playbook";
+import UserManager from "./UserManager";
 
 const BRAND = {
   crimson:"#9B1C1C", crimsonDark:"#6B0F0F", crimsonLight:"#C53030",
@@ -43,6 +44,7 @@ const ADMIN_NAV = [
   { id:"health", label:"Health Report", icon:"🏥" },
   { id:"playbook", label:"Playbook", icon:"📖" },
   { id:"announcements", label:"Announcements", icon:"📢" },
+  { id:"users", label:"User Accounts", icon:"🔑" },
 ];
 
 const PLAYER_NAV = [
@@ -1077,63 +1079,87 @@ function PlayerAnnouncements(){
 
 // ── LOGIN ──
 function Login({onLogin}){
-  const [role,setRole]=useState(ROLES.HEAD_COACH);
-  const [playerName,setPlayerName]=useState("");
-  const [players,setPlayers]=useState([]);
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
   const [loading,setLoading]=useState(false);
+  const [error,setError]=useState(null);
+  // Demo mode fallback
+  const [demoRole,setDemoRole]=useState(ROLES.HEAD_COACH);
+  const [demoMode,setDemoMode]=useState(false);
 
-  useEffect(()=>{
-    if(role===ROLES.PLAYER){
-      supabase.from("players").select("id,name,photo,pos,jersey").order("name").then(({data})=>{ if(data&&data.length>0){setPlayers(data);setPlayerName(data[0].name);} });
+  const handleLogin=async(e)=>{
+    e&&e.preventDefault();
+    if(!email||!password){ setError("Please enter email and password."); return; }
+    setLoading(true); setError(null);
+    try {
+      const{data,error:authError}=await supabase.auth.signInWithPassword({email,password});
+      if(authError) throw authError;
+      // Get role from user_profiles
+      const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",data.user.id).single();
+      const role=profile?.role||"player";
+      const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER};
+      let playerData=null;
+      if(role==="player"&&profile?.player_id){
+        const{data:pl}=await supabase.from("players").select("*").eq("id",profile.player_id).single();
+        playerData=pl;
+      }
+      onLogin(roleMap[role]||ROLES.PLAYER,playerData);
+    } catch(err){
+      setError(err.message||"Login failed. Check your email and password.");
     }
-  },[role]);
-
-  const handleLogin=async()=>{
-    setLoading(true);
-    if(role===ROLES.PLAYER){
-      const pl=players.find(p=>p.name===playerName)||players[0];
-      onLogin(role,pl);
-    } else { onLogin(role,null); }
     setLoading(false);
   };
 
+  const handleDemoLogin=()=>{ onLogin(demoRole,null); };
+
   return(
     <div style={{background:BRAND.black,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Segoe UI',system-ui,sans-serif"}}>
-      <div style={{width:400,textAlign:"center"}}>
+      <div style={{width:420,textAlign:"center"}}>
         <TitansLogo size={90}/>
         <div style={{fontSize:11,letterSpacing:"0.2em",textTransform:"uppercase",color:BRAND.gold,marginTop:14}}>Enderun Men's College Basketball</div>
         <h1 style={{fontSize:22,fontWeight:800,color:BRAND.textPrimary,margin:"8px 0 4px"}}>Management System</h1>
         <p style={{fontSize:12,color:BRAND.textSecondary,marginBottom:28}}>Season 2026–27</p>
+
+        {/* Tab toggle */}
+        <div style={{display:"flex",gap:4,background:BRAND.charcoal,borderRadius:10,padding:4,marginBottom:16}}>
+          <button onClick={()=>setDemoMode(false)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",background:!demoMode?BRAND.crimson:"transparent",color:!demoMode?BRAND.textPrimary:BRAND.textSecondary,fontSize:13,fontWeight:600}}>🔑 Sign In</button>
+          <button onClick={()=>setDemoMode(true)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",background:demoMode?BRAND.crimson:"transparent",color:demoMode?BRAND.textPrimary:BRAND.textSecondary,fontSize:13,fontWeight:600}}>🎮 Demo Mode</button>
+        </div>
+
         <div style={{background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:14,padding:28}}>
-          <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>EMAIL</label>
-            <input placeholder="coach@enderun.edu.ph" style={S.input} defaultValue="coach@enderun.edu.ph"/>
-          </div>
-          <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>PASSWORD</label>
-            <input type="password" style={S.input} defaultValue="password"/>
-          </div>
-          <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>ROLE</label>
-            <select value={role} onChange={e=>setRole(e.target.value)} style={S.input}>
-              <option value={ROLES.HEAD_COACH}>Head Coach (Admin)</option>
-              <option value={ROLES.TEAM_MANAGER}>Team Manager (Admin)</option>
-              <option value={ROLES.ASSISTANT}>Assistant Coach</option>
-              <option value={ROLES.PLAYER}>Player</option>
-            </select>
-          </div>
-          {role===ROLES.PLAYER&&players.length>0&&(
-            <div style={{marginBottom:14}}>
-              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>SELECT YOUR NAME</label>
-              <select value={playerName} onChange={e=>setPlayerName(e.target.value)} style={S.input}>
-                {players.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-              </select>
+          {!demoMode?(
+            <form onSubmit={handleLogin}>
+              <div style={{marginBottom:14}}>
+                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>EMAIL</label>
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={S.input} autoComplete="email"/>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>PASSWORD</label>
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={S.input} autoComplete="current-password"/>
+              </div>
+              {error&&<div style={{marginBottom:14,padding:"10px 14px",background:"#4a131333",borderRadius:8,fontSize:12,color:"#f87171",textAlign:"left"}}>⚠️ {error}</div>}
+              <button type="submit" disabled={loading} style={{...S.btn("primary"),width:"100%",padding:"11px",fontSize:14,borderRadius:10}}>{loading?"Signing in…":"Sign In"}</button>
+              <div style={{marginTop:14,fontSize:11,color:BRAND.textSecondary}}>
+                Don't have an account? Ask the Head Coach to create one for you.
+              </div>
+            </form>
+          ):(
+            <div>
+              <div style={{marginBottom:14,padding:"10px 14px",background:"#2a2a0055",borderRadius:8,fontSize:12,color:BRAND.gold,textAlign:"left"}}>
+                🎮 Demo mode — explore without a real account
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>SELECT ROLE</label>
+                <select value={demoRole} onChange={e=>setDemoRole(e.target.value)} style={S.input}>
+                  <option value={ROLES.HEAD_COACH}>Head Coach (Admin)</option>
+                  <option value={ROLES.TEAM_MANAGER}>Team Manager (Admin)</option>
+                  <option value={ROLES.ASSISTANT}>Assistant Coach</option>
+                  <option value={ROLES.PLAYER}>Player (Demo)</option>
+                </select>
+              </div>
+              <button onClick={handleDemoLogin} style={{...S.btn("gold"),width:"100%",padding:"11px",fontSize:14,borderRadius:10}}>Enter as {demoRole}</button>
             </div>
           )}
-          <div style={{marginBottom:20,padding:"8px 12px",background:`${BRAND.border}55`,borderRadius:8,fontSize:11,color:BRAND.textSecondary,textAlign:"left"}}>
-            {isAdmin(role)?"🔑 Admin: Full access — manage players, attendance, health & schedule.":role===ROLES.PLAYER?"👤 Player: View own profile, check-in, report health.":"👁️ Assistant: View-only access."}
-          </div>
-          <button onClick={handleLogin} disabled={loading} style={{...S.btn("primary"),width:"100%",padding:"11px",fontSize:14,borderRadius:10}}>{loading?"Signing in…":"Sign In"}</button>
         </div>
       </div>
     </div>
@@ -1167,7 +1193,6 @@ export default function App(){
     }
   };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
@@ -1190,6 +1215,7 @@ export default function App(){
     health:<AdminHealth players={players}/>,
     playbook:<Playbook isAdmin={true}/>,
     announcements:<Announcements/>,
+    users:<UserManager players={players}/>,
   };
 
   const playerPages={
