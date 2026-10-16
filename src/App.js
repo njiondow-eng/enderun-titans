@@ -737,68 +737,217 @@ function Announcements(){
   );
 }
 
-function AdminDashboard({players,loading}){
+function AdminDashboard({players,loading,setPage}){
   const [games,setGames]=useState([]);
-  useEffect(()=>{ supabase.from("games").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setGames(data); }); },[]);
+  const [practices,setPractices]=useState([]);
+  const [health,setHealth]=useState([]);
+  const [announcements,setAnnouncements]=useState([]);
+  const [attendance,setAttendance]=useState([]);
+
+  useEffect(()=>{
+    supabase.from("games").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setGames(data); });
+    supabase.from("practices").select("*").order("date",{ascending:false}).limit(5).then(({data})=>{ if(data)setPractices(data); });
+    supabase.from("health_reports").select("*").order("created_at",{ascending:false}).limit(5).then(({data})=>{ if(data)setHealth(data); });
+    supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3).then(({data})=>{ if(data)setAnnouncements(data); });
+    supabase.from("attendance").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>{ if(data)setAttendance(data); });
+  },[]);
+
   const avgPts=players.length?(players.reduce((a,p)=>a+p.pts,0)/players.length).toFixed(1):0;
   const avgReb=players.length?(players.reduce((a,p)=>a+p.reb,0)/players.length).toFixed(1):0;
   const avgAst=players.length?(players.reduce((a,p)=>a+p.ast,0)/players.length).toFixed(1):0;
   const avgFg=players.length?(players.reduce((a,p)=>a+p.fg,0)/players.length).toFixed(1):0;
   const played=games.filter(g=>g.us!==null&&g.them!==null);
   const wins=played.filter(g=>g.us>g.them).length;
+  const upcoming=games.filter(g=>g.us===null||g.them===null);
+  const injured=players.filter(p=>p.status==="Injured").length;
+  const activeHealth=health.filter(h=>h.status!=="Cleared").length;
+  const todayAtt=attendance.filter(a=>a.session_date===new Date().toISOString().split("T")[0]);
+  const attRate=todayAtt.length?Math.round(todayAtt.filter(a=>a.status==="Present").length/todayAtt.length*100):null;
+
+  const QuickCard=({icon,title,value,sub,color,onClick,children})=>(
+    <div onClick={onClick} style={{...S.card,marginBottom:0,cursor:"pointer",borderLeft:`3px solid ${color||BRAND.border}`,transition:"all 0.15s"}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=BRAND.gold;e.currentTarget.style.background="#252525";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=color||BRAND.border;e.currentTarget.style.background=BRAND.surfaceLight;}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:children?12:0}}>
+        <div>
+          <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+            <span>{icon}</span><span style={{textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:600}}>{title}</span>
+          </div>
+          <div style={{fontSize:28,fontWeight:800,color:color||BRAND.gold,lineHeight:1}}>{value}</div>
+          {sub&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:3}}>{sub}</div>}
+        </div>
+        <span style={{fontSize:18,color:BRAND.textSecondary,marginTop:2}}>→</span>
+      </div>
+      {children}
+    </div>
+  );
+
   return(
     <div>
-      <div style={{background:`linear-gradient(135deg,${BRAND.crimsonDark},${BRAND.charcoal})`,border:`1px solid ${BRAND.crimson}55`,borderRadius:12,padding:"18px 24px",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+      {/* Hero Banner */}
+      <div style={{background:`linear-gradient(135deg,${BRAND.crimsonDark},${BRAND.charcoal})`,border:`1px solid ${BRAND.crimson}55`,borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
           <TitansLogo size={52}/>
           <div>
-            <div style={{fontSize:12,color:BRAND.gold,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600}}>Enderun Titans</div>
+            <div style={{fontSize:11,color:BRAND.gold,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600}}>Enderun Titans</div>
             <div style={{fontSize:26,fontWeight:800,color:BRAND.textPrimary,lineHeight:1}}>Men's Basketball</div>
-            <div style={{fontSize:12,color:BRAND.textSecondary}}>Season 2026–27</div>
+            <div style={{fontSize:12,color:BRAND.textSecondary}}>Season 2026–27 · Click any card to navigate</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
-          {[["Players",players.length],["Active",players.filter(p=>p.status==="Active").length],["Record",played.length?`${wins}W-${played.length-wins}L`:"—"]].map(([l,v])=>(
-            <div key={l} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:BRAND.gold}}>{v}</div><div style={{fontSize:11,color:BRAND.textSecondary}}>{l}</div></div>
+        <div style={{display:"flex",gap:28,flexWrap:"wrap"}}>
+          {[["Players",players.length],["Record",played.length?`${wins}–${played.length-wins}`:"—"],["PPG",avgPts]].map(([l,v])=>(
+            <div key={l} style={{textAlign:"center"}}><div style={{fontSize:24,fontWeight:700,color:BRAND.gold}}>{v}</div><div style={{fontSize:11,color:BRAND.textSecondary}}>{l}</div></div>
           ))}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
-        {[["PPG",avgPts],["RPG",avgReb],["APG",avgAst],["FG%",`${avgFg}%`]].map(([l,v])=>(
-          <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>Team {l}</div></div>
+
+      {/* Team Stats Row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+        {[["PPG",avgPts,"Team avg"],["RPG",avgReb,"Team avg"],["APG",avgAst,"Team avg"],["FG%",`${avgFg}%`,"Team avg"]].map(([l,v,s])=>(
+          <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div><div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{s}</div></div>
         ))}
       </div>
-      {loading?<Spinner/>:(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
-          <div style={S.card}>
-            <div style={S.cardTitle}>Points Leaders</div>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={[...players].sort((a,b)=>b.pts-a.pts).slice(0,6).map(p=>({name:p.name.split(" ").pop(),pts:p.pts}))}>
-                <XAxis dataKey="name" tick={{fill:BRAND.textSecondary,fontSize:10}} axisLine={false} tickLine={false}/>
-                <YAxis tick={{fill:BRAND.textSecondary,fontSize:10}} axisLine={false} tickLine={false}/>
-                <Tooltip contentStyle={{background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:8,color:BRAND.textPrimary}}/>
+
+      {/* Main Dashboard Cards Grid */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
+
+        {/* Roster Card */}
+        <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>setPage("roster")}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {players.slice(0,4).map(p=>(
+              <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <Avatar initials={p.photo||"??"} size={24}/>
+                  <span style={{fontSize:12,fontWeight:600}}>{p.name.split(" ").slice(0,2).join(" ")}</span>
+                </div>
+                <span style={S.pill(p.status)}>{p.status}</span>
+              </div>
+            ))}
+            {players.length>4&&<div style={{fontSize:11,color:BRAND.textSecondary,textAlign:"center"}}>+{players.length-4} more players →</div>}
+          </div>
+        </QuickCard>
+
+        {/* League Card */}
+        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${upcoming.length} upcoming games`} color={BRAND.gold} onClick={()=>setPage("league")}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {upcoming.slice(0,3).map(g=>(
+              <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600}}>vs {g.opp}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{g.date} · {g.home_away}</div>
+                </div>
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:`${BRAND.crimson}33`,color:BRAND.crimsonLight}}>{g.home_away}</span>
+              </div>
+            ))}
+            {upcoming.length===0&&played.length>0&&(
+              <div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>All games played ✅</div>
+            )}
+            {games.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No games scheduled yet</div>}
+          </div>
+        </QuickCard>
+
+        {/* Practice Card */}
+        <QuickCard icon="🏋️" title="Practice" value={practices.length} sub="sessions scheduled" color="#a78bfa" onClick={()=>setPage("practice")}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {practices.slice(0,3).map(p=>(
+              <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600}}>{p.type}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{p.date} · {p.time}</div>
+                </div>
+                <span style={{fontSize:10,color:"#a78bfa"}}>📍 {p.location?.split(" ")[0]}</span>
+              </div>
+            ))}
+            {practices.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No sessions yet</div>}
+          </div>
+        </QuickCard>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
+
+        {/* Attendance Card */}
+        <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>setPage("attendance")}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
+            {["Present","Late","Excused","Absent"].map(s=>{
+              const count=todayAtt.filter(a=>a.status===s).length;
+              const c={Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"}[s];
+              return count>0?(
+                <div key={s} style={{flex:1,textAlign:"center",background:`${c}11`,borderRadius:8,padding:"6px 4px"}}>
+                  <div style={{fontSize:16,fontWeight:700,color:c}}>{count}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{s}</div>
+                </div>
+              ):null;
+            })}
+            {todayAtt.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,width:"100%",textAlign:"center"}}>No attendance recorded today</div>}
+          </div>
+        </QuickCard>
+
+        {/* Health Card */}
+        <QuickCard icon="🏥" title="Health Report" value={activeHealth} sub={`active reports · ${health.filter(h=>h.status==="Recovering").length} recovering`} color="#fb923c" onClick={()=>setPage("health")}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {health.filter(h=>h.status!=="Cleared").slice(0,3).map(h=>(
+              <div key={h.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600}}>{h.player_name?.split(" ").slice(0,2).join(" ")}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{h.injury?.slice(0,30)}</div>
+                </div>
+                <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:{Mild:"#60a5fa22",Moderate:"#facc1522",Severe:"#f8717122"}[h.severity],color:{Mild:"#60a5fa",Moderate:"#facc15",Severe:"#f87171"}[h.severity]}}>{h.severity}</span>
+              </div>
+            ))}
+            {activeHealth===0&&<div style={{fontSize:12,color:"#4ade80",textAlign:"center"}}>All players healthy! 💪</div>}
+          </div>
+        </QuickCard>
+
+        {/* Stats Card */}
+        <QuickCard icon="📊" title="Statistics" value={`#1`} sub={`${players.length>0?[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "):"—"} leads scoring`} color="#60a5fa" onClick={()=>setPage("stats")}>
+          {loading?<div style={{fontSize:12,color:BRAND.textSecondary}}>Loading…</div>:(
+            <ResponsiveContainer width="100%" height={90}>
+              <BarChart data={[...players].sort((a,b)=>b.pts-a.pts).slice(0,5).map(p=>({name:p.name.split(" ").pop(),pts:p.pts}))}>
+                <XAxis dataKey="name" tick={{fill:BRAND.textSecondary,fontSize:9}} axisLine={false} tickLine={false}/>
+                <YAxis hide/>
+                <Tooltip contentStyle={{background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:8,color:BRAND.textPrimary,fontSize:11}}/>
                 <Bar dataKey="pts" fill={BRAND.crimson} radius={[3,3,0,0]}>
-                  {[...players].sort((a,b)=>b.pts-a.pts).slice(0,6).map((_,i)=><Cell key={i} fill={i===0?BRAND.gold:BRAND.crimson}/>)}
+                  {[...players].sort((a,b)=>b.pts-a.pts).slice(0,5).map((_,i)=><Cell key={i} fill={i===0?BRAND.gold:BRAND.crimson}/>)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
-          <div style={S.card}>
-            <div style={S.cardTitle}>Roster Status</div>
-            <div style={{maxHeight:220,overflowY:"auto"}}>
-              {players.map(p=>(
-                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <Avatar initials={p.photo||"??"} size={26}/>
-                    <div><div style={{fontSize:13,fontWeight:600}}>{p.name}</div><div style={{fontSize:10,color:BRAND.textSecondary}}>{p.pos} · #{p.jersey}</div></div>
+          )}
+        </QuickCard>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+        {/* Announcements Card */}
+        <QuickCard icon="📢" title="Announcements" value={announcements.length} sub="recent posts" color="#fbbf24" onClick={()=>setPage("announcements")}>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {announcements.slice(0,3).map(a=>{
+              const tc={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
+              return(
+                <div key={a.id} style={{padding:"6px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
+                  <div style={{display:"flex",gap:6,marginBottom:3}}>
+                    <span style={{fontSize:10,fontWeight:700,color:tc[a.type]||"#aaa"}}>{a.type}</span>
+                    <span style={{fontSize:10,color:BRAND.textSecondary}}>{a.date}</span>
                   </div>
-                  <span style={S.pill(p.status)}>{p.status}</span>
+                  <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary}}>{a.title}</div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+            {announcements.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No announcements yet</div>}
           </div>
-        </div>
-      )}
+        </QuickCard>
+
+        {/* Playbook Card */}
+        <QuickCard icon="📖" title="Playbook" value="→" sub="View & animate plays" color={BRAND.gold} onClick={()=>setPage("playbook")}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
+            {["Offense","Defense","Set Plays","Transition"].map(cat=>(
+              <div key={cat} onClick={e=>{e.stopPropagation();setPage("playbook");}} style={{flex:1,minWidth:80,textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"8px 4px",cursor:"pointer"}}>
+                <div style={{fontSize:11,fontWeight:600,color:BRAND.crimsonLight}}>{cat}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:10,fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>Draw plays · Add frame breakdown · Animate</div>
+        </QuickCard>
+      </div>
     </div>
   );
 }
@@ -1083,18 +1232,14 @@ function Login({onLogin}){
   const [password,setPassword]=useState("");
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState(null);
-  // Demo mode fallback
-  const [demoRole,setDemoRole]=useState(ROLES.HEAD_COACH);
-  const [demoMode,setDemoMode]=useState(false);
 
   const handleLogin=async(e)=>{
     e&&e.preventDefault();
-    if(!email||!password){ setError("Please enter email and password."); return; }
+    if(!email||!password){ setError("Please enter your email and password."); return; }
     setLoading(true); setError(null);
-    try {
+    try{
       const{data,error:authError}=await supabase.auth.signInWithPassword({email,password});
       if(authError) throw authError;
-      // Get role from user_profiles
       const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",data.user.id).single();
       const role=profile?.role||"player";
       const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER};
@@ -1104,62 +1249,31 @@ function Login({onLogin}){
         playerData=pl;
       }
       onLogin(roleMap[role]||ROLES.PLAYER,playerData);
-    } catch(err){
-      setError(err.message||"Login failed. Check your email and password.");
-    }
+    }catch(err){ setError(err.message||"Login failed. Check your email and password."); }
     setLoading(false);
   };
 
-  const handleDemoLogin=()=>{ onLogin(demoRole,null); };
-
   return(
     <div style={{background:BRAND.black,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Segoe UI',system-ui,sans-serif"}}>
-      <div style={{width:420,textAlign:"center"}}>
+      <div style={{width:400,textAlign:"center"}}>
         <TitansLogo size={90}/>
         <div style={{fontSize:11,letterSpacing:"0.2em",textTransform:"uppercase",color:BRAND.gold,marginTop:14}}>Enderun Men's College Basketball</div>
         <h1 style={{fontSize:22,fontWeight:800,color:BRAND.textPrimary,margin:"8px 0 4px"}}>Management System</h1>
         <p style={{fontSize:12,color:BRAND.textSecondary,marginBottom:28}}>Season 2026–27</p>
-
-        {/* Tab toggle */}
-        <div style={{display:"flex",gap:4,background:BRAND.charcoal,borderRadius:10,padding:4,marginBottom:16}}>
-          <button onClick={()=>setDemoMode(false)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",background:!demoMode?BRAND.crimson:"transparent",color:!demoMode?BRAND.textPrimary:BRAND.textSecondary,fontSize:13,fontWeight:600}}>🔑 Sign In</button>
-          <button onClick={()=>setDemoMode(true)} style={{flex:1,padding:"8px",borderRadius:8,border:"none",cursor:"pointer",background:demoMode?BRAND.crimson:"transparent",color:demoMode?BRAND.textPrimary:BRAND.textSecondary,fontSize:13,fontWeight:600}}>🎮 Demo Mode</button>
-        </div>
-
         <div style={{background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:14,padding:28}}>
-          {!demoMode?(
-            <form onSubmit={handleLogin}>
-              <div style={{marginBottom:14}}>
-                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>EMAIL</label>
-                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={S.input} autoComplete="email"/>
-              </div>
-              <div style={{marginBottom:20}}>
-                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>PASSWORD</label>
-                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={S.input} autoComplete="current-password"/>
-              </div>
-              {error&&<div style={{marginBottom:14,padding:"10px 14px",background:"#4a131333",borderRadius:8,fontSize:12,color:"#f87171",textAlign:"left"}}>⚠️ {error}</div>}
-              <button type="submit" disabled={loading} style={{...S.btn("primary"),width:"100%",padding:"11px",fontSize:14,borderRadius:10}}>{loading?"Signing in…":"Sign In"}</button>
-              <div style={{marginTop:14,fontSize:11,color:BRAND.textSecondary}}>
-                Don't have an account? Ask the Head Coach to create one for you.
-              </div>
-            </form>
-          ):(
-            <div>
-              <div style={{marginBottom:14,padding:"10px 14px",background:"#2a2a0055",borderRadius:8,fontSize:12,color:BRAND.gold,textAlign:"left"}}>
-                🎮 Demo mode — explore without a real account
-              </div>
-              <div style={{marginBottom:20}}>
-                <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>SELECT ROLE</label>
-                <select value={demoRole} onChange={e=>setDemoRole(e.target.value)} style={S.input}>
-                  <option value={ROLES.HEAD_COACH}>Head Coach (Admin)</option>
-                  <option value={ROLES.TEAM_MANAGER}>Team Manager (Admin)</option>
-                  <option value={ROLES.ASSISTANT}>Assistant Coach</option>
-                  <option value={ROLES.PLAYER}>Player (Demo)</option>
-                </select>
-              </div>
-              <button onClick={handleDemoLogin} style={{...S.btn("gold"),width:"100%",padding:"11px",fontSize:14,borderRadius:10}}>Enter as {demoRole}</button>
+          <form onSubmit={handleLogin}>
+            <div style={{marginBottom:14}}>
+              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>EMAIL</label>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={S.input} autoComplete="email"/>
             </div>
-          )}
+            <div style={{marginBottom:20}}>
+              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>PASSWORD</label>
+              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={S.input} autoComplete="current-password"/>
+            </div>
+            {error&&<div style={{marginBottom:14,padding:"10px 14px",background:"#4a131333",borderRadius:8,fontSize:12,color:"#f87171",textAlign:"left"}}>⚠️ {error}</div>}
+            <button type="submit" disabled={loading} style={{...S.btn("primary"),width:"100%",padding:"12px",fontSize:15,borderRadius:10,justifyContent:"center"}}>{loading?"Signing in…":"Sign In"}</button>
+            <div style={{marginTop:14,fontSize:11,color:BRAND.textSecondary}}>No account? Ask the Head Coach to create one for you.</div>
+          </form>
         </div>
       </div>
     </div>
@@ -1206,7 +1320,7 @@ export default function App(){
   const freshPlayer=currentPlayer&&players.length>0?players.find(p=>p.id===currentPlayer.id)||currentPlayer:currentPlayer;
 
   const adminPages={
-    dashboard:<AdminDashboard players={players} loading={playersLoading}/>,
+    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
     roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading}/>,
     stats:<Statistics players={players}/>,
     attendance:<AdminAttendance players={players}/>,
