@@ -1289,6 +1289,30 @@ export default function App(){
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
+  const [authChecking,setAuthChecking]=useState(true);
+
+  // Restore session on page refresh
+  useEffect(()=>{
+    supabase.auth.getSession().then(async({data:{session}})=>{
+      if(session){
+        const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",session.user.id).single();
+        const role=profile?.role||"player";
+        const roleMap={"head_coach":"Head Coach","team_manager":"Team Manager","assistant":"Assistant Coach","player":"Player"};
+        let playerData=null;
+        if(role==="player"&&profile?.player_id){
+          const{data:pl}=await supabase.from("players").select("*").eq("id",profile.player_id).single();
+          playerData=pl;
+        }
+        setRole(roleMap[role]||"Player");
+        setCurrentPlayer(playerData);
+        setLoggedIn(true);
+      }
+      setAuthChecking(false);
+    });
+    supabase.auth.onAuthStateChange((_event,session)=>{
+      if(!session){ setLoggedIn(false); setRole(null); setCurrentPlayer(null); }
+    });
+  },[]);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
@@ -1314,6 +1338,14 @@ export default function App(){
   const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
   const handleLogout=()=>{ setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
 
+    if(authChecking) return(
+    <div style={{background:BRAND.black,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center"}}>
+        <TitansLogo size={80}/>
+        <div style={{color:BRAND.textSecondary,marginTop:16,fontSize:14}}>Loading…</div>
+      </div>
+    </div>
+  );
   if(!loggedIn) return <Login onLogin={handleLogin}/>;
 
   // Update currentPlayer from fresh players list
