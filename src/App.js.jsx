@@ -50,8 +50,8 @@ const ADMIN_NAV = [
 const PLAYER_NAV = [
   { id:"myprofile", label:"My Profile", icon:"👤" },
   { id:"mystats", label:"My Stats", icon:"📊" },
-  { id:"checkin", label:"Check-In", icon:"✅" },
-  { id:"healthreport", label:"Report Health", icon:"🏥" },
+  { id:"myattendance", label:"My Attendance", icon:"✅" },
+  { id:"myhealth", label:"My Health", icon:"🏥" },
   { id:"schedule", label:"Schedule", icon:"📅" },
   { id:"playbook", label:"Playbook", icon:"📖" },
   { id:"announcements", label:"Announcements", icon:"📢" },
@@ -374,7 +374,7 @@ function AdminAttendance({players}){
           <span style={S.cardTitle}>Take Attendance</span>
           <input type="date" value={session.date} onChange={e=>setSession(s=>({...s,date:e.target.value}))} style={{...S.input,width:160}}/>
           <select value={session.type} onChange={e=>setSession(s=>({...s,type:e.target.value}))} style={{...S.input,width:160}}>
-            {["Practice","Game","Meeting","Film Session"].map(t=><option key={t}>{t}</option>)}
+            {["Practice","Game","Film Session","Team Activity"].map(t=><option key={t}>{t}</option>)}
           </select>
           <button onClick={saveSession} style={S.btn("gold")}>{saved?"✅ Saved!":"💾 Save Session"}</button>
         </div>
@@ -499,24 +499,56 @@ function Practice(){
 
 function League(){
   const [games,setGames]=useState([]);
+  const [leagues,setLeagues]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [showForm,setShowForm]=useState(false);
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",type:"League",us:"",them:""});
+  const [showLeagueForm,setShowLeagueForm]=useState(false);
+  const [showGameForm,setShowGameForm]=useState(false);
+  const [editingGame,setEditingGame]=useState(null);
+  const [activeLeague,setActiveLeague]=useState(null);
+  const [expandedLeague,setExpandedLeague]=useState(null);
+  const [leagueName,setLeagueName]=useState("");
   const [saving,setSaving]=useState(false);
+  const [form,setForm]=useState({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",league_name:"",us:"",them:""});
 
   useEffect(()=>{ load(); },[]);
-  const load=async()=>{ setLoading(true); const{data}=await supabase.from("games").select("*").order("date",{ascending:true}); if(data)setGames(data); setLoading(false); };
 
-  const save=async()=>{
-    if(!form.opp||!form.date) return; setSaving(true);
-    const d={date:form.date,time:form.time,opp:form.opp,venue:form.venue,home_away:form.home_away,type:form.type,us:form.us!==""?parseInt(form.us):null,them:form.them!==""?parseInt(form.them):null};
-    if(editing) await supabase.from("games").update(d).eq("id",editing);
-    else await supabase.from("games").insert([d]);
-    setSaving(false); setShowForm(false); setEditing(null); load();
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await supabase.from("games").select("*").order("date",{ascending:true});
+    if(data){
+      setGames(data);
+      // Extract unique league names
+      const names=[...new Set(data.map(g=>g.type||"General"))];
+      setLeagues(names);
+      if(names.length>0&&!expandedLeague) setExpandedLeague(names[0]);
+    }
+    setLoading(false);
   };
 
-  const del=async(id)=>{ if(!window.confirm("Remove game?")) return; await supabase.from("games").delete().eq("id",id); load(); };
+  const addLeague=()=>{
+    if(!leagueName.trim()) return;
+    const newLeagues=[...leagues,leagueName.trim()];
+    setLeagues(newLeagues);
+    setExpandedLeague(leagueName.trim());
+    setLeagueName("");
+    setShowLeagueForm(false);
+  };
+
+  const removeLeague=async(name)=>{
+    if(!window.confirm(`Remove league "${name}" and all its games?`)) return;
+    await supabase.from("games").delete().eq("type",name);
+    load();
+  };
+
+  const saveGame=async()=>{
+    if(!form.opp||!form.date) return; setSaving(true);
+    const d={date:form.date,time:form.time,opp:form.opp,venue:form.venue,home_away:form.home_away,type:activeLeague||expandedLeague||"General",us:form.us!==""?parseInt(form.us):null,them:form.them!==""?parseInt(form.them):null};
+    if(editingGame) await supabase.from("games").update(d).eq("id",editingGame);
+    else await supabase.from("games").insert([d]);
+    setSaving(false); setShowGameForm(false); setEditingGame(null); load();
+  };
+
+  const delGame=async(id)=>{ if(!window.confirm("Remove game?")) return; await supabase.from("games").delete().eq("id",id); load(); };
 
   const F=({label,field,type="text",opts})=>(
     <div style={{marginBottom:11}}>
@@ -526,64 +558,132 @@ function League(){
     </div>
   );
 
-  const played=games.filter(g=>g.us!==null&&g.them!==null);
-  const wins=played.filter(g=>g.us>g.them).length;
-
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div>
-          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>League Games</h1>
-          {played.length>0&&<p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>Record: {wins}W – {played.length-wins}L</p>}
+          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>League Management</h1>
+          <p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>{leagues.length} league{leagues.length!==1?"s":""} · {games.length} total games</p>
         </div>
-        <button onClick={()=>{setForm({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",type:"League",us:"",them:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ Add Game</button>
+        <button onClick={()=>setShowLeagueForm(true)} style={S.btn("gold")}>+ Add League</button>
       </div>
-      {loading?<Spinner/>:(
-        <div style={{display:"grid",gap:12}}>
-          {games.map(g=>{
-            const hasScore=g.us!==null&&g.them!==null;
-            const won=hasScore&&g.us>g.them;
+
+      {loading?<Spinner/>:leagues.length===0?(
+        <div style={{...S.card,textAlign:"center",padding:"40px 20px"}}>
+          <div style={{fontSize:40,marginBottom:10}}>🏆</div>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>No leagues yet</div>
+          <div style={{fontSize:13,color:BRAND.textSecondary,marginBottom:16}}>Click "+ Add League" to create your first league</div>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:16}}>
+          {leagues.map(league=>{
+            const leagueGames=games.filter(g=>g.type===league);
+            const played=leagueGames.filter(g=>g.us!==null&&g.them!==null);
+            const wins=played.filter(g=>g.us>g.them).length;
+            const isExpanded=expandedLeague===league;
             return(
-              <div key={g.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${hasScore?(won?BRAND.gold:BRAND.crimson):BRAND.border}`}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-                  <div style={{display:"flex",alignItems:"center",gap:16}}>
-                    <div style={{width:48,textAlign:"center"}}>
-                      <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
-                      <div style={{fontSize:24,fontWeight:800,color:hasScore?(won?BRAND.gold:BRAND.crimsonLight):BRAND.textPrimary,lineHeight:1}}>{new Date(g.date+"T00:00").getDate()}</div>
-                    </div>
-                    <div style={{width:1,height:40,background:BRAND.border}}/>
+              <div key={league} style={{...S.card,marginBottom:0}}>
+                {/* League Header */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setExpandedLeague(isExpanded?null:league)}>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:44,height:44,borderRadius:10,background:`${BRAND.crimson}33`,border:`2px solid ${BRAND.crimson}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏆</div>
                     <div>
-                      <div style={{fontWeight:700,fontSize:15}}>vs {g.opp}</div>
-                      <div style={{fontSize:12,color:BRAND.textSecondary}}>{g.time} · {g.home_away} · {g.venue}</div>
+                      <div style={{fontWeight:700,fontSize:16,color:BRAND.textPrimary}}>{league}</div>
+                      <div style={{fontSize:12,color:BRAND.textSecondary}}>{leagueGames.length} games · {played.length?`${wins}W–${played.length-wins}L`:"No results yet"}</div>
                     </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    {hasScore&&<div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:won?BRAND.gold:BRAND.crimsonLight}}>{g.us}–{g.them}</div><div style={{fontSize:11,color:won?"#4ade80":"#f87171",fontWeight:700}}>{won?"WIN":"LOSS"}</div></div>}
-                    <button onClick={()=>{setForm({...g,us:g.us??""  ,them:g.them??""});setEditing(g.id);setShowForm(true);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:12}}>✏️</button>
-                    <button onClick={()=>del(g.id)} style={{...S.btn("danger"),padding:"5px 12px",fontSize:12}}>🗑️</button>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {played.length>0&&(
+                      <div style={{textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"6px 14px"}}>
+                        <div style={{fontSize:18,fontWeight:800,color:BRAND.gold}}>{wins}–{played.length-wins}</div>
+                        <div style={{fontSize:10,color:BRAND.textSecondary}}>W–L</div>
+                      </div>
+                    )}
+                    <button onClick={e=>{e.stopPropagation();setActiveLeague(league);setForm({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",us:"",them:""});setEditingGame(null);setShowGameForm(true);}} style={{...S.btn("secondary"),padding:"6px 12px",fontSize:12}}>+ Add Game</button>
+                    <button onClick={e=>{e.stopPropagation();removeLeague(league);}} style={{...S.btn("danger"),padding:"6px 12px",fontSize:12}}>🗑️</button>
+                    <span style={{fontSize:18,color:BRAND.textSecondary,marginLeft:4}}>{isExpanded?"▲":"▼"}</span>
                   </div>
                 </div>
+
+                {/* Games List */}
+                {isExpanded&&(
+                  <div style={{marginTop:16,borderTop:`1px solid ${BRAND.border}`,paddingTop:16}}>
+                    {leagueGames.length===0?(
+                      <div style={{textAlign:"center",color:BRAND.textSecondary,padding:"16px 0",fontSize:13}}>
+                        No games added yet. Click "+ Add Game" above.
+                      </div>
+                    ):(
+                      <div style={{display:"grid",gap:10}}>
+                        {leagueGames.map(g=>{
+                          const hasScore=g.us!==null&&g.them!==null;
+                          const won=hasScore&&g.us>g.them;
+                          return(
+                            <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:BRAND.charcoal,borderRadius:10,borderLeft:`3px solid ${hasScore?(won?BRAND.gold:BRAND.crimson):BRAND.border}`,flexWrap:"wrap",gap:10}}>
+                              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                                <div style={{width:44,textAlign:"center"}}>
+                                  <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
+                                  <div style={{fontSize:22,fontWeight:800,color:hasScore?(won?BRAND.gold:BRAND.crimsonLight):BRAND.textPrimary,lineHeight:1}}>{new Date(g.date+"T00:00").getDate()}</div>
+                                </div>
+                                <div style={{width:1,height:36,background:BRAND.border}}/>
+                                <div>
+                                  <div style={{fontWeight:700,fontSize:14}}>vs {g.opp}</div>
+                                  <div style={{fontSize:11,color:BRAND.textSecondary}}>{g.time} · {g.home_away} · {g.venue}</div>
+                                </div>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                                {hasScore?(
+                                  <div style={{textAlign:"center"}}>
+                                    <div style={{fontSize:20,fontWeight:800,color:won?BRAND.gold:BRAND.crimsonLight}}>{g.us}–{g.them}</div>
+                                    <div style={{fontSize:11,color:won?"#4ade80":"#f87171",fontWeight:700}}>{won?"WIN":"LOSS"}</div>
+                                  </div>
+                                ):(
+                                  <span style={{fontSize:12,color:BRAND.textSecondary,padding:"4px 10px",background:`${BRAND.border}55`,borderRadius:6}}>Upcoming</span>
+                                )}
+                                <button onClick={()=>{setActiveLeague(league);setForm({...g,us:g.us??"",them:g.them??""});setEditingGame(g.id);setShowGameForm(true);}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>✏️</button>
+                                <button onClick={()=>delGame(g.id)} style={{...S.btn("danger"),padding:"5px 10px",fontSize:11}}>🗑️</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
-          {games.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No games added yet.</div>}
         </div>
       )}
-      {showForm&&(
-        <Modal title={editing?"Edit Game":"Add Game"} onClose={()=>setShowForm(false)}>
+
+      {/* Add League Modal */}
+      {showLeagueForm&&(
+        <Modal title="Add New League" onClose={()=>setShowLeagueForm(false)}>
+          <div style={{marginBottom:16}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>League Name *</label>
+            <input value={leagueName} onChange={e=>setLeagueName(e.target.value)} style={S.input} placeholder="e.g. UAAP Season 89, FilOil Flying V Cup…"/>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button onClick={()=>setShowLeagueForm(false)} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={addLeague} style={S.btn("gold")}>Add League</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add/Edit Game Modal */}
+      {showGameForm&&(
+        <Modal title={editingGame?"Edit Game":`Add Game — ${activeLeague}`} onClose={()=>setShowGameForm(false)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
             <div style={{gridColumn:"1/-1"}}><F label="Opponent *" field="opp"/></div>
             <F label="Date *" field="date" type="date"/>
             <F label="Time" field="time"/>
             <F label="Venue" field="venue"/>
             <F label="Home/Away" field="home_away" opts={["Home","Away","Neutral"]}/>
-            <F label="Type" field="type" opts={["League","Friendly","Tournament","Exhibition"]}/>
-            <F label="Our Score" field="us" type="number"/>
+            <F label="Our Score (if played)" field="us" type="number"/>
             <F label="Opponent Score" field="them" type="number"/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"Save Game"}</button>
+            <button onClick={()=>setShowGameForm(false)} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={saveGame} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"Save Game"}</button>
           </div>
         </Modal>
       )}
@@ -803,8 +903,18 @@ function AdminDashboard({players,loading,setPage}){
 
       {/* Team Stats Row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-        {[["PPG",avgPts,"Team avg"],["RPG",avgReb,"Team avg"],["APG",avgAst,"Team avg"],["FG%",`${avgFg}%`,"Team avg"]].map(([l,v,s])=>(
-          <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div><div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{s}</div></div>
+        {players.length>0&&[
+          {l:"Scoring Leader",v:[...players].sort((a,b)=>b.pts-a.pts)[0]?.pts,name:[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"PPG"},
+          {l:"Rebounding Leader",v:[...players].sort((a,b)=>b.reb-a.reb)[0]?.reb,name:[...players].sort((a,b)=>b.reb-a.reb)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"RPG"},
+          {l:"Assists Leader",v:[...players].sort((a,b)=>b.ast-a.ast)[0]?.ast,name:[...players].sort((a,b)=>b.ast-a.ast)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"APG"},
+          {l:"FG% Leader",v:`${[...players].sort((a,b)=>b.fg-a.fg)[0]?.fg}%`,name:[...players].sort((a,b)=>b.fg-a.fg)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"FG%"},
+        ].map(({l,v,name,unit})=>(
+          <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
+            <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
+            <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{unit}</div>
+            <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary,marginTop:6,borderTop:`1px solid ${BRAND.border}`,paddingTop:6}}>{name}</div>
+          </div>
         ))}
       </div>
 
@@ -1043,56 +1153,68 @@ function MyStats({player:p}){
   );
 }
 
-function PlayerCheckIn({player}){
-  const [status,setStatus]=useState(null);
+function MyAttendance({player}){
   const [history,setHistory]=useState([]);
-  const [saving,setSaving]=useState(false);
-  const today=new Date().toISOString().split("T")[0];
+  const [loading,setLoading]=useState(true);
   const sColors={Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"};
 
-  useEffect(()=>{ supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(10).then(({data})=>{ if(data)setHistory(data); }); },[player.id]);
+  useEffect(()=>{
+    if(!player?.id) return;
+    supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).then(({data})=>{ if(data)setHistory(data); setLoading(false); });
+  },[player?.id]);
 
-  const checkIn=async(s)=>{
-    setSaving(true); setStatus(s);
-    await supabase.from("attendance").insert([{player_id:player.id,session_date:today,session_type:"Practice",status:s}]);
-    setSaving(false);
-    const{data}=await supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(10);
-    if(data)setHistory(data);
-  };
+  const present=history.filter(h=>h.status==="Present").length;
+  const late=history.filter(h=>h.status==="Late").length;
+  const excused=history.filter(h=>h.status==="Excused").length;
+  const absent=history.filter(h=>h.status==="Absent").length;
+  const total=history.length;
+  const rate=total?Math.round((present+late*0.5)/total*100):0;
 
   return(
     <div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Attendance Check-In</h1>
-      <div style={{...S.card,textAlign:"center",marginBottom:20}}>
-        <Avatar initials={player.photo||"??"} size={56} color={BRAND.gold}/>
-        <div style={{fontWeight:700,fontSize:18,marginTop:10}}>{player.name}</div>
-        <div style={{color:BRAND.textSecondary,fontSize:12,marginBottom:20}}>{today}</div>
-        {status?(
-          <div>
-            <div style={{fontSize:48,marginBottom:8}}>{status==="Present"?"✅":status==="Late"?"⏰":status==="Excused"?"📋":"❌"}</div>
-            <div style={{fontSize:18,fontWeight:700,color:sColors[status],marginBottom:8}}>Marked as {status}</div>
-            <button onClick={()=>setStatus(null)} style={{...S.btn("secondary"),marginTop:8}}>Change</button>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>My Attendance</h1>
+      <p style={{color:BRAND.textSecondary,fontSize:13,marginBottom:20}}>Your attendance record — managed by the coaching staff.</p>
+
+      <div style={{...S.card,display:"flex",alignItems:"center",gap:20,marginBottom:18}}>
+        <Avatar initials={player?.photo||"??"} size={56} color={BRAND.gold}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:16}}>{player?.name}</div>
+          <div style={{fontSize:12,color:BRAND.textSecondary,marginBottom:10}}>{player?.pos} · #{player?.jersey}</div>
+          <div style={{height:8,background:BRAND.border,borderRadius:4}}>
+            <div style={{width:`${rate}%`,height:"100%",background:rate>=90?BRAND.gold:rate>=75?BRAND.crimson:"#f87171",borderRadius:4,transition:"width 0.5s"}}/>
           </div>
-        ):(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,maxWidth:320,margin:"0 auto"}}>
-            {["Present","Late","Excused","Absent"].map(s=>(
-              <button key={s} onClick={()=>checkIn(s)} disabled={saving} style={{...S.btn("secondary"),padding:"16px",fontSize:14,fontWeight:700,borderRadius:10,border:`2px solid ${sColors[s]}44`,color:sColors[s]}}>
-                {s==="Present"?"✅ Present":s==="Late"?"⏰ Late":s==="Excused"?"📋 Excused":"❌ Absent"}
-              </button>
-            ))}
-          </div>
-        )}
+          <div style={{fontSize:12,color:rate>=90?BRAND.gold:BRAND.textSecondary,marginTop:4,fontWeight:600}}>{rate}% attendance rate · {total} sessions recorded</div>
+        </div>
       </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+        {[["Present",present,"#4ade80"],["Late",late,"#facc15"],["Excused",excused,"#60a5fa"],["Absent",absent,"#f87171"]].map(([l,v,c])=>(
+          <div key={l} style={{...S.statCard,borderTop:`3px solid ${c}`}}>
+            <div style={{...S.statVal,color:c,fontSize:24}}>{v}</div>
+            <div style={S.statLabel}>{l}</div>
+          </div>
+        ))}
+      </div>
+
       <div style={S.card}>
-        <div style={S.cardTitle}>My Attendance History</div>
-        {history.length===0?<div style={{textAlign:"center",color:BRAND.textSecondary,padding:16}}>No records yet.</div>:(
+        <div style={S.cardTitle}>Attendance History</div>
+        {loading?<div style={{textAlign:"center",padding:20,color:BRAND.textSecondary}}>Loading…</div>
+        :history.length===0?(
+          <div style={{textAlign:"center",color:BRAND.textSecondary,padding:20}}>No attendance records yet.</div>
+        ):(
           <table style={S.table}>
-            <thead><tr><th style={S.th}>Date</th><th style={S.th}>Session</th><th style={S.th}>Status</th></tr></thead>
+            <thead><tr>
+              <th style={S.th}>Date</th>
+              <th style={S.th}>Session</th>
+              <th style={S.th}>Status</th>
+            </tr></thead>
             <tbody>{history.map(h=>(
               <tr key={h.id}>
                 <td style={S.td}>{h.session_date}</td>
                 <td style={S.td}>{h.session_type}</td>
-                <td style={S.td}><span style={{color:sColors[h.status]||"#aaa",fontWeight:600}}>{h.status}</span></td>
+                <td style={S.td}>
+                  <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${sColors[h.status]||"#aaa"}22`,color:sColors[h.status]||"#aaa"}}>{h.status}</span>
+                </td>
               </tr>
             ))}</tbody>
           </table>
@@ -1102,63 +1224,63 @@ function PlayerCheckIn({player}){
   );
 }
 
-function PlayerHealthReport({player}){
+function MyHealth({player}){
   const [reports,setReports]=useState([]);
-  const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({type:"Injury",description:"",severity:"Mild",notes:""});
-  const [saving,setSaving]=useState(false);
-  const [submitted,setSubmitted]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const sevColor={Mild:"#60a5fa",Moderate:"#facc15",Severe:"#f87171"};
 
-  useEffect(()=>{ supabase.from("health_reports").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).then(({data})=>{ if(data)setReports(data); }); },[player.id]);
+  useEffect(()=>{
+    if(!player?.id) return;
+    supabase.from("health_reports").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).then(({data})=>{ if(data)setReports(data); setLoading(false); });
+  },[player?.id]);
 
-  const submit=async()=>{
-    if(!form.description) return; setSaving(true);
-    await supabase.from("health_reports").insert([{player_id:player.id,player_name:player.name,injury:`${form.type}: ${form.description}`,severity:form.severity,date:new Date().toISOString().split("T")[0],status:"Monitoring",notes:form.notes}]);
-    setSaving(false); setShowForm(false); setSubmitted(true); setTimeout(()=>setSubmitted(false),3000);
-    const{data}=await supabase.from("health_reports").select("*").eq("player_id",player.id).order("created_at",{ascending:false});
-    if(data)setReports(data);
-  };
+  const active=reports.filter(r=>r.status!=="Cleared");
+  const cleared=reports.filter(r=>r.status==="Cleared");
 
   return(
     <div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Report Health Issue</h1>
-      {submitted&&<div style={{...S.card,background:"#134a2e",borderColor:"#4ade80",marginBottom:18,textAlign:"center"}}><div style={{fontSize:32}}>✅</div><div style={{fontSize:16,fontWeight:700,color:"#4ade80",marginTop:6}}>Report submitted to coaching staff!</div></div>}
-      <div style={{...S.card,marginBottom:18}}>
-        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
-          <Avatar initials={player.photo||"??"} size={44} color={BRAND.gold}/>
-          <div><div style={{fontWeight:700}}>{player.name}</div><div style={{fontSize:12,color:BRAND.textSecondary}}>{player.pos} · #{player.jersey}</div></div>
-          <button onClick={()=>setShowForm(true)} style={{...S.btn("gold"),marginLeft:"auto"}}>+ Report Issue</button>
-        </div>
-        <div style={{padding:"14px",background:`${BRAND.crimson}22`,borderRadius:8,fontSize:13,color:BRAND.crimsonLight,lineHeight:1.6}}>
-          🏥 Do not hide injuries. Report any pain or concern immediately — your health is the priority.
-        </div>
-      </div>
-      <div style={S.card}>
-        <div style={S.cardTitle}>My Health Reports</div>
-        {reports.length===0?<div style={{textAlign:"center",color:BRAND.textSecondary,padding:16}}>No reports. Stay healthy! 💪</div>:reports.map(r=>(
-          <div key={r.id} style={{padding:"12px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-            <div style={{display:"flex",gap:8,marginBottom:4}}>
-              <span style={{fontSize:11,fontWeight:700,color:"#f87171",background:"#4a131322",padding:"2px 8px",borderRadius:8}}>{r.severity}</span>
-              <span style={{fontSize:11,color:BRAND.textSecondary}}>{r.date}</span>
-              <span style={S.pill(r.status)}>{r.status}</span>
-            </div>
-            <div style={{fontSize:13,fontWeight:600}}>{r.injury}</div>
-            {r.notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{r.notes}</div>}
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>My Health Records</h1>
+      <p style={{color:BRAND.textSecondary,fontSize:13,marginBottom:20}}>Health and injury records managed by the coaching staff.</p>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+        {[["Total Reports",reports.length,BRAND.textSecondary],["Active",active.length,"#fb923c"],["Cleared",cleared.length,"#4ade80"]].map(([l,v,c])=>(
+          <div key={l} style={S.statCard}>
+            <div style={{...S.statVal,color:c,fontSize:24}}>{v}</div>
+            <div style={S.statLabel}>{l}</div>
           </div>
         ))}
       </div>
-      {showForm&&(
-        <Modal title="Report Health Issue" onClose={()=>setShowForm(false)}>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={S.input}>{["Injury","Pain/Soreness","Illness","Fatigue","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Describe *</label><textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}} placeholder="e.g. Pain in left ankle when running…"/></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Severity</label><select value={form.severity} onChange={e=>setForm(f=>({...f,severity:e.target.value}))} style={S.input}>{["Mild","Moderate","Severe"].map(s=><option key={s}>{s}</option>)}</select></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Additional Notes</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={S.input}/></div>
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={submit} disabled={saving} style={S.btn("gold")}>{saving?"Submitting…":"Submit Report"}</button>
-          </div>
-        </Modal>
+
+      {loading?(
+        <div style={{textAlign:"center",padding:30,color:BRAND.textSecondary}}>Loading…</div>
+      ):reports.length===0?(
+        <div style={{...S.card,textAlign:"center",padding:"30px 20px"}}>
+          <div style={{fontSize:40,marginBottom:10}}>💪</div>
+          <div style={{fontSize:15,fontWeight:600,color:"#4ade80"}}>No health reports on file</div>
+          <div style={{fontSize:13,color:BRAND.textSecondary,marginTop:6}}>Stay healthy and keep performing!</div>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:12}}>
+          {reports.map(r=>(
+            <div key={r.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${sevColor[r.severity]||BRAND.border}`}}>
+              <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+                <span style={{fontSize:12,fontWeight:700,color:sevColor[r.severity],background:`${sevColor[r.severity]}22`,padding:"2px 10px",borderRadius:10}}>{r.severity}</span>
+                <span style={S.pill(r.status)}>{r.status}</span>
+                <span style={{fontSize:11,color:BRAND.textSecondary,marginLeft:"auto"}}>📅 {r.date}</span>
+              </div>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🩹 {r.injury}</div>
+              {r.return_date&&<div style={{fontSize:12,color:BRAND.textSecondary}}>Est. Return: {r.return_date}</div>}
+              {r.notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>📝 {r.notes}</div>}
+            </div>
+          ))}
+        </div>
       )}
+
+      <div style={{...S.card,marginTop:20,background:"#1a2a40",borderColor:"#1e3a5f"}}>
+        <div style={{fontSize:13,color:"#60a5fa",lineHeight:1.7}}>
+          ℹ️ Health records are managed by the Head Coach and Team Manager. If you have an injury or health concern, please report it directly to your coaching staff.
+        </div>
+      </div>
     </div>
   );
 }
@@ -1289,30 +1411,6 @@ export default function App(){
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
-  const [authChecking,setAuthChecking]=useState(true);
-
-  // Restore session on page refresh
-  useEffect(()=>{
-    supabase.auth.getSession().then(async({data:{session}})=>{
-      if(session){
-        const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",session.user.id).single();
-        const role=profile?.role||"player";
-        const roleMap={"head_coach":"Head Coach","team_manager":"Team Manager","assistant":"Assistant Coach","player":"Player"};
-        let playerData=null;
-        if(role==="player"&&profile?.player_id){
-          const{data:pl}=await supabase.from("players").select("*").eq("id",profile.player_id).single();
-          playerData=pl;
-        }
-        setRole(roleMap[role]||"Player");
-        setCurrentPlayer(playerData);
-        setLoggedIn(true);
-      }
-      setAuthChecking(false);
-    });
-    supabase.auth.onAuthStateChange((_event,session)=>{
-      if(!session){ setLoggedIn(false); setRole(null); setCurrentPlayer(null); }
-    });
-  },[]);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
@@ -1338,14 +1436,6 @@ export default function App(){
   const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
   const handleLogout=()=>{ setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
 
-    if(authChecking) return(
-    <div style={{background:BRAND.black,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{textAlign:"center"}}>
-        <TitansLogo size={80}/>
-        <div style={{color:BRAND.textSecondary,marginTop:16,fontSize:14}}>Loading…</div>
-      </div>
-    </div>
-  );
   if(!loggedIn) return <Login onLogin={handleLogin}/>;
 
   // Update currentPlayer from fresh players list
@@ -1367,8 +1457,8 @@ export default function App(){
   const playerPages={
     myprofile:<MyProfile player={freshPlayer||{}} loadPlayers={loadPlayers}/>,
     mystats:<MyStats player={freshPlayer||{}}/>,
-    checkin:<PlayerCheckIn player={freshPlayer||{}}/>,
-    healthreport:<PlayerHealthReport player={freshPlayer||{}}/>,
+    myattendance:<MyAttendance player={freshPlayer||{}}/>,
+    myhealth:<MyHealth player={freshPlayer||{}}/>,
     schedule:<PlayerSchedule/>,
     playbook:<Playbook isAdmin={false}/>,
     announcements:<PlayerAnnouncements/>,
