@@ -1386,11 +1386,11 @@ function Login({onLogin}){
           <form onSubmit={handleLogin}>
             <div style={{marginBottom:14}}>
               <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>EMAIL</label>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={S.input} autoComplete="email"/>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={S.input} autoComplete="username" name="email" id="email"/>
             </div>
             <div style={{marginBottom:20}}>
               <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:5,textAlign:"left"}}>PASSWORD</label>
-              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={S.input} autoComplete="current-password"/>
+              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" style={S.input} autoComplete="current-password" name="password" id="password"/>
             </div>
             {error&&<div style={{marginBottom:14,padding:"10px 14px",background:"#4a131333",borderRadius:8,fontSize:12,color:"#f87171",textAlign:"left"}}>⚠️ {error}</div>}
             <button type="submit" disabled={loading} style={{...S.btn("primary"),width:"100%",padding:"12px",fontSize:15,borderRadius:10,justifyContent:"center"}}>{loading?"Signing in…":"Sign In"}</button>
