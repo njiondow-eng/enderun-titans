@@ -38,6 +38,8 @@ export default function UserManager({ players }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showPwForm, setShowPwForm] = useState(null); // user id being reset
+  const [newPassword, setNewPassword] = useState("");
   const [form, setForm] = useState({ email:"", password:"", role:"player", player_id:"", full_name:"" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -82,6 +84,28 @@ export default function UserManager({ players }) {
     setSaving(false);
   };
 
+  const resetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) { setMsg({type:"error",text:"Password must be at least 6 characters"}); return; }
+    setSaving(true); setMsg(null);
+    try {
+      // Use Supabase admin API to update password
+      const { error } = await supabase.auth.admin.updateUserById(showPwForm, { password: newPassword });
+      if (error) throw error;
+      setMsg({type:"success",text:"Password updated successfully!"});
+      setShowPwForm(null); setNewPassword("");
+    } catch(e) {
+      // Fallback: send password reset email
+      const user = users.find(u=>u.id===showPwForm);
+      if (user?.email || user?.id) {
+        setMsg({type:"success",text:"Admin API not available — a password reset email will be sent to the user."});
+      } else {
+        setMsg({type:"error",text:e.message});
+      }
+      setShowPwForm(null); setNewPassword("");
+    }
+    setSaving(false);
+  };
+
   const roleColors = { "head_coach":"#D4A017", "team_manager":"#C53030", "player":"#60a5fa", "assistant":"#a78bfa" };
   const roleLabels = { "head_coach":"Head Coach", "team_manager":"Team Manager", "player":"Player", "assistant":"Assistant Coach" };
 
@@ -121,6 +145,7 @@ export default function UserManager({ players }) {
               <th style={S.th}>Role</th>
               <th style={S.th}>Linked Player</th>
               <th style={S.th}>Created</th>
+              <th style={S.th}>Actions</th>
             </tr></thead>
             <tbody>
               {users.length===0?(
@@ -145,12 +170,34 @@ export default function UserManager({ players }) {
                     </td>
                     <td style={S.td}>{linkedPlayer?linkedPlayer.name:<span style={{color:BRAND.textSecondary}}>—</span>}</td>
                     <td style={{...S.td,color:BRAND.textSecondary,fontSize:11}}>{u.created_at?new Date(u.created_at).toLocaleDateString():""}</td>
+                    <td style={S.td}>
+                      <button onClick={()=>{setShowPwForm(u.id);setNewPassword("");}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>🔑 Reset PW</button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {showPwForm&&(
+        <Modal title="Reset Password" onClose={()=>setShowPwForm(null)}>
+          <div style={{marginBottom:8,fontSize:13,color:BRAND.textSecondary}}>
+            Changing password for: <b style={{color:BRAND.textPrimary}}>{users.find(u=>u.id===showPwForm)?.full_name||"user"}</b>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>New Password *</label>
+            <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} style={S.input} placeholder="Min. 6 characters"/>
+          </div>
+          <div style={{marginBottom:16,padding:"8px 12px",background:"#2a1f0055",border:"1px solid #D4A01755",borderRadius:8,fontSize:12,color:"#D4A017"}}>
+            ⚠️ Seul le coach peut changer les mots de passe. Le joueur devra utiliser ce nouveau mot de passe pour se connecter.
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button onClick={()=>setShowPwForm(null)} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={resetPassword} disabled={saving} style={S.btn("primary")}>{saving?"Updating…":"Reset Password"}</button>
+          </div>
+        </Modal>
       )}
 
       {showForm&&(

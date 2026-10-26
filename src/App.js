@@ -122,7 +122,7 @@ const Spinner=()=>(
   </div>
 );
 
-const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
+const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
 
 // ── ROSTER ──
 function Roster({players,loadPlayers,loading}){
@@ -144,8 +144,29 @@ function Roster({players,loadPlayers,loading}){
     const photo=form.name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
     const data={...form,photo,jersey:parseInt(form.jersey)||0,pts:parseFloat(form.pts)||0,reb:parseFloat(form.reb)||0,ast:parseFloat(form.ast)||0,fg:parseFloat(form.fg)||0,threept:parseFloat(form.threept)||0,ft:parseFloat(form.ft)||0,gp:parseInt(form.gp)||0,stl:parseFloat(form.stl)||0,blk:parseFloat(form.blk)||0,to_:parseFloat(form.to_)||0};
     delete data.id; delete data.created_at;
+    let savedId=editing;
     if(editing){ await supabase.from("players").update(data).eq("id",editing); }
-    else { await supabase.from("players").insert([data]); }
+    else {
+      const{data:inserted}=await supabase.from("players").insert([data]).select("id").single();
+      if(inserted) savedId=inserted.id;
+    }
+    // Auto-create Supabase account if email + student_id provided and no account yet
+    if(!editing && form.email.trim() && form.student_id.trim()){
+      try{
+        const{data:authData,error:authError}=await supabase.auth.signUp({
+          email:form.email.trim(),
+          password:form.student_id.trim(),
+          options:{data:{role:"player",full_name:form.name}}
+        });
+        if(!authError&&authData.user){
+          await supabase.from("user_profiles").insert([{
+            id:authData.user.id,role:"player",
+            full_name:form.name,player_id:savedId
+          }]);
+          if(savedId) await supabase.from("players").update({auth_user_id:authData.user.id}).eq("id",savedId);
+        }
+      }catch(e){ console.warn("Auto account creation failed:",e.message); }
+    }
     setSaving(false); setShowForm(false); loadPlayers();
   };
 
@@ -183,6 +204,7 @@ function Roster({players,loadPlayers,loading}){
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
                   <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.pos} · #{p.jersey} · {p.yr}</div>
+                  {p.student_id&&<div style={{fontSize:10,color:BRAND.gold,marginTop:1}}>ID: {p.student_id}</div>}
                 </div>
                 <span style={S.pill(p.status)}>{p.status}</span>
               </div>
@@ -217,7 +239,13 @@ function Roster({players,loadPlayers,loading}){
             <FormField form={form} setForm={setForm} label="Nationality" field="nationality"/>
             <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Course / Program" field="course"/></div>
             <FormField form={form} setForm={setForm} label="Phone" field="phone"/>
-            <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Email" field="email"/></div>
+            <FormField form={form} setForm={setForm} label="Email" field="email"/>
+            <FormField form={form} setForm={setForm} label="Student ID" field="student_id"/>
+            {!editing&&form.email&&form.student_id&&(
+              <div style={{gridColumn:"1/-1",padding:"8px 12px",background:"#134a2e55",border:"1px solid #4ade8055",borderRadius:8,fontSize:12,color:"#4ade80"}}>
+                ✅ Un compte de connexion sera créé automatiquement — Email: <b>{form.email}</b> · Mot de passe: <b>{form.student_id}</b>
+              </div>
+            )}
             <FormField form={form} setForm={setForm} label="GP" field="gp" type="number"/>
             <FormField form={form} setForm={setForm} label="PPG" field="pts" type="number"/>
             <FormField form={form} setForm={setForm} label="RPG" field="reb" type="number"/>
