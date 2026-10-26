@@ -515,22 +515,29 @@ function League(){
 
   const load=async()=>{
     setLoading(true);
-    const{data}=await supabase.from("games").select("*").order("date",{ascending:true});
-    if(data){
-      setGames(data);
-      // Extract unique league names
-      const names=[...new Set(data.map(g=>g.type||"General"))];
-      setLeagues(names);
-      if(names.length>0&&!expandedLeague) setExpandedLeague(names[0]);
+    // Load leagues from dedicated table
+    const{data:leagueRows}=await supabase.from("leagues").select("name").order("created_at",{ascending:true});
+    // Load games
+    const{data:gamesData}=await supabase.from("games").select("*").order("date",{ascending:true});
+    if(gamesData) setGames(gamesData);
+    if(leagueRows){
+      // Merge leagues from table + any extra league names found in games (safety net)
+      const fromTable=leagueRows.map(r=>r.name);
+      const fromGames=gamesData?[...new Set(gamesData.map(g=>g.type||"General"))]:[];
+      const merged=[...new Set([...fromTable,...fromGames])];
+      setLeagues(merged);
+      if(merged.length>0&&!expandedLeague) setExpandedLeague(merged[0]);
     }
     setLoading(false);
   };
 
-  const addLeague=()=>{
+  const addLeague=async()=>{
     if(!leagueName.trim()) return;
-    const newLeagues=[...leagues,leagueName.trim()];
-    setLeagues(newLeagues);
-    setExpandedLeague(leagueName.trim());
+    const name=leagueName.trim();
+    // Persist to Supabase leagues table
+    await supabase.from("leagues").insert([{name}]);
+    setLeagues(prev=>[...prev,name]);
+    setExpandedLeague(name);
     setLeagueName("");
     setShowLeagueForm(false);
   };
@@ -538,6 +545,7 @@ function League(){
   const removeLeague=async(name)=>{
     if(!window.confirm(`Remove league "${name}" and all its games?`)) return;
     await supabase.from("games").delete().eq("type",name);
+    await supabase.from("leagues").delete().eq("name",name);
     load();
   };
 
