@@ -86,8 +86,10 @@ const TitansLogo=({size=48})=>(
   </svg>
 );
 
-const Avatar=({initials,size=36,color=BRAND.crimson})=>(
-  <div style={{width:size,height:size,borderRadius:"50%",background:`${color}33`,border:`1.5px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.3,fontWeight:700,color,flexShrink:0}}>{initials}</div>
+const Avatar=({initials,size=36,color=BRAND.crimson,photoUrl=null})=>(
+  photoUrl
+    ?<img src={photoUrl} alt={initials} style={{width:size,height:size,borderRadius:"50%",border:`1.5px solid ${color}`,objectFit:"cover",flexShrink:0}}/>
+    :<div style={{width:size,height:size,borderRadius:"50%",background:`${color}33`,border:`1.5px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.3,fontWeight:700,color,flexShrink:0}}>{initials}</div>
 );
 
 // ── GLOBAL FormField — defined OUTSIDE all components to prevent focus loss ──
@@ -122,7 +124,7 @@ const Spinner=()=>(
   </div>
 );
 
-const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
+const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
 
 // ── ROSTER ──
 function Roster({players,loadPlayers,loading}){
@@ -132,20 +134,59 @@ function Roster({players,loadPlayers,loading}){
   const [editing,setEditing]=useState(null);
   const [form,setForm]=useState(BLANK_PLAYER);
   const [saving,setSaving]=useState(false);
+  const [uploadingPhoto,setUploadingPhoto]=useState(false);
 
   const filtered=players.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.pos.includes(search.toUpperCase()));
 
   const openAdd=()=>{ setForm(BLANK_PLAYER); setEditing(null); setShowForm(true); };
   const openEdit=(p)=>{ setForm({...p,to_:p.to_||0}); setEditing(p.id); setShowForm(true); };
 
+  const uploadPhoto=async(file,playerId)=>{
+    if(!file||!playerId) return null;
+    setUploadingPhoto(true);
+    const ext=file.name.split(".").pop();
+    const path=`players/${playerId}.${ext}`;
+    const{error}=await supabase.storage.from("player-photos").upload(path,file,{upsert:true});
+    if(error){ setUploadingPhoto(false); return null; }
+    const{data}=supabase.storage.from("player-photos").getPublicUrl(path);
+    setUploadingPhoto(false);
+    return data.publicUrl;
+  };
+
   const savePlayer=async()=>{
     if(!form.name.trim()) return;
     setSaving(true);
     const photo=form.name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
     const data={...form,photo,jersey:parseInt(form.jersey)||0,pts:parseFloat(form.pts)||0,reb:parseFloat(form.reb)||0,ast:parseFloat(form.ast)||0,fg:parseFloat(form.fg)||0,threept:parseFloat(form.threept)||0,ft:parseFloat(form.ft)||0,gp:parseInt(form.gp)||0,stl:parseFloat(form.stl)||0,blk:parseFloat(form.blk)||0,to_:parseFloat(form.to_)||0};
-    delete data.id; delete data.created_at;
+    delete data.id; delete data.created_at; delete data._photoFile;
+    let savedId=editing;
     if(editing){ await supabase.from("players").update(data).eq("id",editing); }
-    else { await supabase.from("players").insert([data]); }
+    else {
+      const{data:inserted}=await supabase.from("players").insert([data]).select("id").single();
+      if(inserted) savedId=inserted.id;
+    }
+    // Upload photo if selected
+    if(form._photoFile && savedId){
+      const url=await uploadPhoto(form._photoFile,savedId);
+      if(url) await supabase.from("players").update({photo_url:url}).eq("id",savedId);
+    }
+    // Auto-create Supabase account if email + student_id provided and no account yet
+    if(!editing && form.email.trim() && form.student_id.trim()){
+      try{
+        const{data:authData,error:authError}=await supabase.auth.signUp({
+          email:form.email.trim(),
+          password:form.student_id.trim(),
+          options:{data:{role:"player",full_name:form.name}}
+        });
+        if(!authError&&authData.user){
+          await supabase.from("user_profiles").insert([{
+            id:authData.user.id,role:"player",
+            full_name:form.name,player_id:savedId
+          }]);
+          if(savedId) await supabase.from("players").update({auth_user_id:authData.user.id}).eq("id",savedId);
+        }
+      }catch(e){ console.warn("Auto account creation failed:",e.message); }
+    }
     setSaving(false); setShowForm(false); loadPlayers();
   };
 
@@ -179,10 +220,11 @@ function Roster({players,loadPlayers,loading}){
               onMouseEnter={e=>e.currentTarget.style.borderColor=BRAND.crimson}
               onMouseLeave={e=>e.currentTarget.style.borderColor=BRAND.border}>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                <Avatar initials={p.photo||"??"} size={44}/>
+                <Avatar initials={p.photo||"??"} size={44} photoUrl={p.photo_url||null}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
                   <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.pos} · #{p.jersey} · {p.yr}</div>
+                  {p.student_id&&<div style={{fontSize:10,color:BRAND.gold,marginTop:1}}>ID: {p.student_id}</div>}
                 </div>
                 <span style={S.pill(p.status)}>{p.status}</span>
               </div>
@@ -205,6 +247,23 @@ function Roster({players,loadPlayers,loading}){
       {showForm&&(
         <Modal title={editing?"Edit Player":"Add New Player"} onClose={()=>setShowForm(false)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
+            {/* Photo Upload */}
+            <div style={{gridColumn:"1/-1",marginBottom:14,display:"flex",alignItems:"center",gap:16}}>
+              <Avatar initials={form.photo||(form.name?form.name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase():"??")} size={60} photoUrl={form._photoPreview||form.photo_url||null}/>
+              <div>
+                <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
+                <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
+                  📷 {uploadingPhoto?"Uploading…":"Choisir une photo"}
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{
+                    const file=e.target.files[0];
+                    if(!file) return;
+                    const preview=URL.createObjectURL(file);
+                    setForm(f=>({...f,_photoFile:file,_photoPreview:preview}));
+                  }}/>
+                </label>
+                {form._photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée</div>}
+              </div>
+            </div>
             <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Full Name *" field="name"/></div>
             <FormField form={form} setForm={setForm} label="Jersey #" field="jersey" type="number"/>
             <FormField form={form} setForm={setForm} label="Position" field="pos" opts={["PG","SG","SF","PF","C"]}/>
@@ -217,7 +276,13 @@ function Roster({players,loadPlayers,loading}){
             <FormField form={form} setForm={setForm} label="Nationality" field="nationality"/>
             <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Course / Program" field="course"/></div>
             <FormField form={form} setForm={setForm} label="Phone" field="phone"/>
-            <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Email" field="email"/></div>
+            <FormField form={form} setForm={setForm} label="Email" field="email"/>
+            <FormField form={form} setForm={setForm} label="Student ID" field="student_id"/>
+            {!editing&&form.email&&form.student_id&&(
+              <div style={{gridColumn:"1/-1",padding:"8px 12px",background:"#134a2e55",border:"1px solid #4ade8055",borderRadius:8,fontSize:12,color:"#4ade80"}}>
+                ✅ Un compte de connexion sera créé automatiquement — Email: <b>{form.email}</b> · Mot de passe: <b>{form.student_id}</b>
+              </div>
+            )}
             <FormField form={form} setForm={setForm} label="GP" field="gp" type="number"/>
             <FormField form={form} setForm={setForm} label="PPG" field="pts" type="number"/>
             <FormField form={form} setForm={setForm} label="RPG" field="reb" type="number"/>
@@ -254,7 +319,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
       <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:20}}>
         <div style={S.card}>
           <div style={{textAlign:"center"}}>
-            <Avatar initials={p.photo||"??"} size={72}/>
+            <Avatar initials={p.photo||"??"} size={72} photoUrl={p.photo_url||null}/>
             <div style={{fontWeight:700,fontSize:17,marginTop:10}}>{p.name}</div>
             <div style={{color:BRAND.textSecondary,fontSize:12}}>#{p.jersey} · {p.pos}</div>
             <span style={{...S.pill(p.status),marginTop:8,display:"inline-block"}}>{p.status}</span>
@@ -836,6 +901,7 @@ function Announcements(){
 
 function AdminDashboard({players,loading,setPage}){
   const [games,setGames]=useState([]);
+  const [leagues,setLeagues]=useState([]);
   const [practices,setPractices]=useState([]);
   const [health,setHealth]=useState([]);
   const [announcements,setAnnouncements]=useState([]);
@@ -843,6 +909,7 @@ function AdminDashboard({players,loading,setPage}){
 
   useEffect(()=>{
     supabase.from("games").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setGames(data); });
+    supabase.from("leagues").select("name").order("created_at",{ascending:true}).then(({data})=>{ if(data)setLeagues(data.map(r=>r.name)); });
     supabase.from("practices").select("*").order("date",{ascending:false}).limit(5).then(({data})=>{ if(data)setPractices(data); });
     supabase.from("health_reports").select("*").order("created_at",{ascending:false}).limit(5).then(({data})=>{ if(data)setHealth(data); });
     supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3).then(({data})=>{ if(data)setAnnouncements(data); });
@@ -935,21 +1002,29 @@ function AdminDashboard({players,loading,setPage}){
         </QuickCard>
 
         {/* League Card */}
-        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${upcoming.length} upcoming games`} color={BRAND.gold} onClick={()=>setPage("league")}>
+        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>setPage("league")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {upcoming.slice(0,3).map(g=>(
-              <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                <div>
-                  <div style={{fontSize:12,fontWeight:600}}>vs {g.opp}</div>
-                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{g.date} · {g.home_away}</div>
-                </div>
-                <span style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:`${BRAND.crimson}33`,color:BRAND.crimsonLight}}>{g.home_away}</span>
-              </div>
-            ))}
-            {upcoming.length===0&&played.length>0&&(
-              <div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>All games played ✅</div>
+            {leagues.length>0?(
+              leagues.map(league=>{
+                const lg=games.filter(g=>g.type===league);
+                const lgPlayed=lg.filter(g=>g.us!==null&&g.them!==null);
+                const lgWins=lgPlayed.filter(g=>g.us>g.them).length;
+                const lgLosses=lgPlayed.length-lgWins;
+                return(
+                  <div key={league} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 8px",borderRadius:7,background:`${BRAND.border}55`}}>
+                    <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary}}>🏆 {league}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:lgPlayed.length?(lgWins>lgLosses?BRAND.gold:BRAND.crimsonLight):BRAND.textSecondary}}>
+                      {lgPlayed.length?`${lgWins}W – ${lgLosses}L`:"No results"}
+                    </div>
+                  </div>
+                );
+              })
+            ):(
+              <div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No leagues yet</div>
             )}
-            {games.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No games scheduled yet</div>}
+            {upcoming.length>0&&(
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{upcoming.length} upcoming game{upcoming.length!==1?"s":""} →</div>
+            )}
           </div>
         </QuickCard>
 
@@ -1064,11 +1139,36 @@ function MyProfile({player,loadPlayers}){
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({phone:player.phone||"",email:player.email||"",height:player.height||"",weight:player.weight||""});
   const [saving,setSaving]=useState(false);
+  const [photoFile,setPhotoFile]=useState(null);
+  const [photoPreview,setPhotoPreview]=useState(null);
+  const [uploadingPhoto,setUploadingPhoto]=useState(false);
   const p=player;
+
+  const handlePhotoChange=e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const uploadPhoto=async()=>{
+    if(!photoFile||!p.id) return;
+    setUploadingPhoto(true);
+    const ext=photoFile.name.split(".").pop();
+    const path=`players/${p.id}.${ext}`;
+    const{error}=await supabase.storage.from("player-photos").upload(path,photoFile,{upsert:true});
+    if(!error){
+      const{data}=supabase.storage.from("player-photos").getPublicUrl(path);
+      await supabase.from("players").update({photo_url:data.publicUrl}).eq("id",p.id);
+      await loadPlayers();
+    }
+    setUploadingPhoto(false); setPhotoFile(null); setPhotoPreview(null);
+  };
 
   const save=async()=>{
     setSaving(true);
     await supabase.from("players").update({phone:form.phone,email:form.email,height:form.height,weight:form.weight}).eq("id",p.id);
+    if(photoFile) await uploadPhoto();
     setSaving(false); setEditing(false); loadPlayers();
   };
 
@@ -1081,7 +1181,19 @@ function MyProfile({player,loadPlayers}){
       {editing?(
         <div style={S.card}>
           <div style={{marginBottom:14,padding:"10px 14px",background:`${BRAND.crimson}22`,borderRadius:8,fontSize:13,color:BRAND.crimsonLight}}>
-            ℹ️ You can update your contact info, height and weight. Stats are managed by the coaching staff.
+            ℹ️ You can update your contact info, height, weight and profile photo. Stats are managed by the coaching staff.
+          </div>
+          {/* Photo upload */}
+          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,padding:"12px 16px",background:BRAND.charcoal,borderRadius:10}}>
+            <Avatar initials={p.photo||"??"} size={60} color={BRAND.gold} photoUrl={photoPreview||p.photo_url||null}/>
+            <div>
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
+              <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
+                📷 {uploadingPhoto?"Uploading…":"Changer ma photo"}
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoChange}/>
+              </label>
+              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée — sera sauvegardée avec vos infos</div>}
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
             {[["Phone","phone"],["Email","email"],["Height","height"],["Weight","weight"]].map(([l,f])=>(
@@ -1092,15 +1204,15 @@ function MyProfile({player,loadPlayers}){
             ))}
           </div>
           <div style={{display:"flex",gap:10,marginTop:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setEditing(false)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"Save Changes"}</button>
+            <button onClick={()=>{setEditing(false);setPhotoFile(null);setPhotoPreview(null);}} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={save} disabled={saving||uploadingPhoto} style={S.btn("gold")}>{saving||uploadingPhoto?"Saving…":"Save Changes"}</button>
           </div>
         </div>
       ):(
         <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:20}}>
           <div style={S.card}>
             <div style={{textAlign:"center"}}>
-              <Avatar initials={p.photo||"??"} size={72} color={BRAND.gold}/>
+              <Avatar initials={p.photo||"??"} size={72} color={BRAND.gold} photoUrl={p.photo_url||null}/>
               <div style={{fontWeight:700,fontSize:17,marginTop:10}}>{p.name}</div>
               <div style={{color:BRAND.textSecondary,fontSize:12}}>#{p.jersey} · {p.pos}</div>
               <span style={{...S.pill(p.status),marginTop:8,display:"inline-block"}}>{p.status}</span>
@@ -1408,6 +1520,7 @@ export default function App(){
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
+  const [authLoading,setAuthLoading]=useState(true);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
@@ -1416,6 +1529,36 @@ export default function App(){
     setPlayersLoading(false);
     return data;
   };
+
+  // Restore session from Supabase on mount
+  useEffect(()=>{
+    const restoreSession=async(session)=>{
+      if(!session?.user) return false;
+      try{
+        const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",session.user.id).single();
+        if(!profile) return false;
+        const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER};
+        const r=roleMap[profile.role]||ROLES.PLAYER;
+        let playerData=null;
+        if(profile.role==="player"&&profile.player_id){
+          const{data:pl}=await supabase.from("players").select("*").eq("id",profile.player_id).single();
+          playerData=pl;
+        }
+        setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
+        setPage(isAdmin(r)?"dashboard":"myprofile");
+        return true;
+      }catch(e){ return false; }
+    };
+
+    supabase.auth.getSession().then(({data:{session}})=>{
+      restoreSession(session).finally(()=>setAuthLoading(false));
+    });
+
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{
+      if(!session) { setLoggedIn(false); setRole(null); setCurrentPlayer(null); }
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
 
   // Seed players if DB is empty
   const seedIfEmpty=async()=>{
@@ -1431,8 +1574,16 @@ export default function App(){
   },[loggedIn]);
 
   const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
-  const handleLogout=()=>{ setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
+  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
 
+  if(authLoading) return(
+    <div style={{background:"#0D0D0D",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center"}}>
+        <TitansLogo size={70}/>
+        <div style={{color:"#9A8A70",fontSize:13,marginTop:16}}>Loading…</div>
+      </div>
+    </div>
+  );
   if(!loggedIn) return <Login onLogin={handleLogin}/>;
 
   // Update currentPlayer from fresh players list
