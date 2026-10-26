@@ -1139,11 +1139,36 @@ function MyProfile({player,loadPlayers}){
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({phone:player.phone||"",email:player.email||"",height:player.height||"",weight:player.weight||""});
   const [saving,setSaving]=useState(false);
+  const [photoFile,setPhotoFile]=useState(null);
+  const [photoPreview,setPhotoPreview]=useState(null);
+  const [uploadingPhoto,setUploadingPhoto]=useState(false);
   const p=player;
+
+  const handlePhotoChange=e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const uploadPhoto=async()=>{
+    if(!photoFile||!p.id) return;
+    setUploadingPhoto(true);
+    const ext=photoFile.name.split(".").pop();
+    const path=`players/${p.id}.${ext}`;
+    const{error}=await supabase.storage.from("player-photos").upload(path,photoFile,{upsert:true});
+    if(!error){
+      const{data}=supabase.storage.from("player-photos").getPublicUrl(path);
+      await supabase.from("players").update({photo_url:data.publicUrl}).eq("id",p.id);
+      await loadPlayers();
+    }
+    setUploadingPhoto(false); setPhotoFile(null); setPhotoPreview(null);
+  };
 
   const save=async()=>{
     setSaving(true);
     await supabase.from("players").update({phone:form.phone,email:form.email,height:form.height,weight:form.weight}).eq("id",p.id);
+    if(photoFile) await uploadPhoto();
     setSaving(false); setEditing(false); loadPlayers();
   };
 
@@ -1156,7 +1181,19 @@ function MyProfile({player,loadPlayers}){
       {editing?(
         <div style={S.card}>
           <div style={{marginBottom:14,padding:"10px 14px",background:`${BRAND.crimson}22`,borderRadius:8,fontSize:13,color:BRAND.crimsonLight}}>
-            ℹ️ You can update your contact info, height and weight. Stats are managed by the coaching staff.
+            ℹ️ You can update your contact info, height, weight and profile photo. Stats are managed by the coaching staff.
+          </div>
+          {/* Photo upload */}
+          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,padding:"12px 16px",background:BRAND.charcoal,borderRadius:10}}>
+            <Avatar initials={p.photo||"??"} size={60} color={BRAND.gold} photoUrl={photoPreview||p.photo_url||null}/>
+            <div>
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
+              <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
+                📷 {uploadingPhoto?"Uploading…":"Changer ma photo"}
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoChange}/>
+              </label>
+              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée — sera sauvegardée avec vos infos</div>}
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
             {[["Phone","phone"],["Email","email"],["Height","height"],["Weight","weight"]].map(([l,f])=>(
@@ -1167,15 +1204,15 @@ function MyProfile({player,loadPlayers}){
             ))}
           </div>
           <div style={{display:"flex",gap:10,marginTop:8,justifyContent:"flex-end"}}>
-            <button onClick={()=>setEditing(false)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"Save Changes"}</button>
+            <button onClick={()=>{setEditing(false);setPhotoFile(null);setPhotoPreview(null);}} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={save} disabled={saving||uploadingPhoto} style={S.btn("gold")}>{saving||uploadingPhoto?"Saving…":"Save Changes"}</button>
           </div>
         </div>
       ):(
         <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:20}}>
           <div style={S.card}>
             <div style={{textAlign:"center"}}>
-              <Avatar initials={p.photo||"??"} size={72} color={BRAND.gold}/>
+              <Avatar initials={p.photo||"??"} size={72} color={BRAND.gold} photoUrl={p.photo_url||null}/>
               <div style={{fontWeight:700,fontSize:17,marginTop:10}}>{p.name}</div>
               <div style={{color:BRAND.textSecondary,fontSize:12}}>#{p.jersey} · {p.pos}</div>
               <span style={{...S.pill(p.status),marginTop:8,display:"inline-block"}}>{p.status}</span>
