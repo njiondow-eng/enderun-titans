@@ -86,8 +86,10 @@ const TitansLogo=({size=48})=>(
   </svg>
 );
 
-const Avatar=({initials,size=36,color=BRAND.crimson})=>(
-  <div style={{width:size,height:size,borderRadius:"50%",background:`${color}33`,border:`1.5px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.3,fontWeight:700,color,flexShrink:0}}>{initials}</div>
+const Avatar=({initials,size=36,color=BRAND.crimson,photoUrl=null})=>(
+  photoUrl
+    ?<img src={photoUrl} alt={initials} style={{width:size,height:size,borderRadius:"50%",border:`1.5px solid ${color}`,objectFit:"cover",flexShrink:0}}/>
+    :<div style={{width:size,height:size,borderRadius:"50%",background:`${color}33`,border:`1.5px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.3,fontWeight:700,color,flexShrink:0}}>{initials}</div>
 );
 
 // ── GLOBAL FormField — defined OUTSIDE all components to prevent focus loss ──
@@ -132,23 +134,41 @@ function Roster({players,loadPlayers,loading}){
   const [editing,setEditing]=useState(null);
   const [form,setForm]=useState(BLANK_PLAYER);
   const [saving,setSaving]=useState(false);
+  const [uploadingPhoto,setUploadingPhoto]=useState(false);
 
   const filtered=players.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.pos.includes(search.toUpperCase()));
 
   const openAdd=()=>{ setForm(BLANK_PLAYER); setEditing(null); setShowForm(true); };
   const openEdit=(p)=>{ setForm({...p,to_:p.to_||0}); setEditing(p.id); setShowForm(true); };
 
+  const uploadPhoto=async(file,playerId)=>{
+    if(!file||!playerId) return null;
+    setUploadingPhoto(true);
+    const ext=file.name.split(".").pop();
+    const path=`players/${playerId}.${ext}`;
+    const{error}=await supabase.storage.from("player-photos").upload(path,file,{upsert:true});
+    if(error){ setUploadingPhoto(false); return null; }
+    const{data}=supabase.storage.from("player-photos").getPublicUrl(path);
+    setUploadingPhoto(false);
+    return data.publicUrl;
+  };
+
   const savePlayer=async()=>{
     if(!form.name.trim()) return;
     setSaving(true);
     const photo=form.name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
     const data={...form,photo,jersey:parseInt(form.jersey)||0,pts:parseFloat(form.pts)||0,reb:parseFloat(form.reb)||0,ast:parseFloat(form.ast)||0,fg:parseFloat(form.fg)||0,threept:parseFloat(form.threept)||0,ft:parseFloat(form.ft)||0,gp:parseInt(form.gp)||0,stl:parseFloat(form.stl)||0,blk:parseFloat(form.blk)||0,to_:parseFloat(form.to_)||0};
-    delete data.id; delete data.created_at;
+    delete data.id; delete data.created_at; delete data._photoFile;
     let savedId=editing;
     if(editing){ await supabase.from("players").update(data).eq("id",editing); }
     else {
       const{data:inserted}=await supabase.from("players").insert([data]).select("id").single();
       if(inserted) savedId=inserted.id;
+    }
+    // Upload photo if selected
+    if(form._photoFile && savedId){
+      const url=await uploadPhoto(form._photoFile,savedId);
+      if(url) await supabase.from("players").update({photo_url:url}).eq("id",savedId);
     }
     // Auto-create Supabase account if email + student_id provided and no account yet
     if(!editing && form.email.trim() && form.student_id.trim()){
@@ -200,7 +220,7 @@ function Roster({players,loadPlayers,loading}){
               onMouseEnter={e=>e.currentTarget.style.borderColor=BRAND.crimson}
               onMouseLeave={e=>e.currentTarget.style.borderColor=BRAND.border}>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                <Avatar initials={p.photo||"??"} size={44}/>
+                <Avatar initials={p.photo||"??"} size={44} photoUrl={p.photo_url||null}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
                   <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.pos} · #{p.jersey} · {p.yr}</div>
@@ -227,6 +247,23 @@ function Roster({players,loadPlayers,loading}){
       {showForm&&(
         <Modal title={editing?"Edit Player":"Add New Player"} onClose={()=>setShowForm(false)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
+            {/* Photo Upload */}
+            <div style={{gridColumn:"1/-1",marginBottom:14,display:"flex",alignItems:"center",gap:16}}>
+              <Avatar initials={form.photo||(form.name?form.name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase():"??")} size={60} photoUrl={form._photoPreview||form.photo_url||null}/>
+              <div>
+                <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
+                <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
+                  📷 {uploadingPhoto?"Uploading…":"Choisir une photo"}
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{
+                    const file=e.target.files[0];
+                    if(!file) return;
+                    const preview=URL.createObjectURL(file);
+                    setForm(f=>({...f,_photoFile:file,_photoPreview:preview}));
+                  }}/>
+                </label>
+                {form._photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée</div>}
+              </div>
+            </div>
             <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Full Name *" field="name"/></div>
             <FormField form={form} setForm={setForm} label="Jersey #" field="jersey" type="number"/>
             <FormField form={form} setForm={setForm} label="Position" field="pos" opts={["PG","SG","SF","PF","C"]}/>
@@ -282,7 +319,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
       <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:20}}>
         <div style={S.card}>
           <div style={{textAlign:"center"}}>
-            <Avatar initials={p.photo||"??"} size={72}/>
+            <Avatar initials={p.photo||"??"} size={72} photoUrl={p.photo_url||null}/>
             <div style={{fontWeight:700,fontSize:17,marginTop:10}}>{p.name}</div>
             <div style={{color:BRAND.textSecondary,fontSize:12}}>#{p.jersey} · {p.pos}</div>
             <span style={{...S.pill(p.status),marginTop:8,display:"inline-block"}}>{p.status}</span>
