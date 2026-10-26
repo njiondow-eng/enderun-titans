@@ -836,6 +836,7 @@ function Announcements(){
 
 function AdminDashboard({players,loading,setPage}){
   const [games,setGames]=useState([]);
+  const [leagues,setLeagues]=useState([]);
   const [practices,setPractices]=useState([]);
   const [health,setHealth]=useState([]);
   const [announcements,setAnnouncements]=useState([]);
@@ -843,6 +844,7 @@ function AdminDashboard({players,loading,setPage}){
 
   useEffect(()=>{
     supabase.from("games").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setGames(data); });
+    supabase.from("leagues").select("name").order("created_at",{ascending:true}).then(({data})=>{ if(data)setLeagues(data.map(r=>r.name)); });
     supabase.from("practices").select("*").order("date",{ascending:false}).limit(5).then(({data})=>{ if(data)setPractices(data); });
     supabase.from("health_reports").select("*").order("created_at",{ascending:false}).limit(5).then(({data})=>{ if(data)setHealth(data); });
     supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3).then(({data})=>{ if(data)setAnnouncements(data); });
@@ -935,21 +937,29 @@ function AdminDashboard({players,loading,setPage}){
         </QuickCard>
 
         {/* League Card */}
-        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${upcoming.length} upcoming games`} color={BRAND.gold} onClick={()=>setPage("league")}>
+        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>setPage("league")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {upcoming.slice(0,3).map(g=>(
-              <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                <div>
-                  <div style={{fontSize:12,fontWeight:600}}>vs {g.opp}</div>
-                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{g.date} · {g.home_away}</div>
-                </div>
-                <span style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:`${BRAND.crimson}33`,color:BRAND.crimsonLight}}>{g.home_away}</span>
-              </div>
-            ))}
-            {upcoming.length===0&&played.length>0&&(
-              <div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>All games played ✅</div>
+            {leagues.length>0?(
+              leagues.map(league=>{
+                const lg=games.filter(g=>g.type===league);
+                const lgPlayed=lg.filter(g=>g.us!==null&&g.them!==null);
+                const lgWins=lgPlayed.filter(g=>g.us>g.them).length;
+                const lgLosses=lgPlayed.length-lgWins;
+                return(
+                  <div key={league} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 8px",borderRadius:7,background:`${BRAND.border}55`}}>
+                    <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary}}>🏆 {league}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:lgPlayed.length?(lgWins>lgLosses?BRAND.gold:BRAND.crimsonLight):BRAND.textSecondary}}>
+                      {lgPlayed.length?`${lgWins}W – ${lgLosses}L`:"No results"}
+                    </div>
+                  </div>
+                );
+              })
+            ):(
+              <div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No leagues yet</div>
             )}
-            {games.length===0&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>No games scheduled yet</div>}
+            {upcoming.length>0&&(
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{upcoming.length} upcoming game{upcoming.length!==1?"s":""} →</div>
+            )}
           </div>
         </QuickCard>
 
