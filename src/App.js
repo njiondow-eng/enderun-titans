@@ -127,7 +127,7 @@ const Spinner=()=>(
 const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
 
 // ── ROSTER ──
-function Roster({players,loadPlayers,loading}){
+function Roster({players,loadPlayers,loading,statsMap={}}){
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [showForm,setShowForm]=useState(false);
@@ -229,12 +229,16 @@ function Roster({players,loadPlayers,loading}){
                 <span style={S.pill(p.status)}>{p.status}</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:10}}>
-                {[["PTS",p.pts],["REB",p.reb],["AST",p.ast]].map(([l,v])=>(
+                {[["PTS","pts"],["REB","reb"],["AST","ast"]].map(([l,k])=>{
+                  const s=statsMap[p.id];
+                  const v=s?s[k]:0;
+                  const hasData=!!s;
+                  return(
                   <div key={l} style={{textAlign:"center",background:BRAND.charcoal,borderRadius:6,padding:"6px 4px"}}>
-                    <div style={{fontSize:15,fontWeight:700,color:BRAND.gold}}>{v}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:hasData?BRAND.gold:BRAND.textSecondary}}>{v}</div>
                     <div style={{fontSize:10,color:BRAND.textSecondary}}>{l}</div>
                   </div>
-                ))}
+                )})}
               </div>
               <div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>openEdit(p)} style={{...S.btn("secondary"),flex:1,padding:"6px",fontSize:12}}>✏️ Edit</button>
@@ -374,53 +378,14 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
   );
 }
 
-function Statistics({players}){
+function Statistics({players,statsMap={}}){
   const [sort,setSort]=useState("pts");
-  const [statsMap,setStatsMap]=useState({}); // keyed by player_id
-  const [loading,setLoading]=useState(true);
   const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"plus_minus",l:"+/-"}];
-
-  useEffect(()=>{ loadStats(); },[]);
-
-  const loadStats=async()=>{
-    setLoading(true);
-    const{data}=await supabase.from("game_stats").select("*");
-    if(data&&data.length>0){
-      // Group by player_id and compute averages
-      const grouped={};
-      data.forEach(row=>{
-        if(!grouped[row.player_id]) grouped[row.player_id]=[];
-        grouped[row.player_id].push(row);
-      });
-      const avg={};
-      Object.entries(grouped).forEach(([pid,rows])=>{
-        const n=rows.length;
-        const sum=(f)=>rows.reduce((s,r)=>s+(r[f]||0),0);
-        const fgm=sum("fgm"),fga=sum("fga"),tpm=sum("tpm"),tpa=sum("tpa"),ftm=sum("ftm"),fta=sum("fta");
-        avg[pid]={
-          gp:n,
-          pts:+(sum("pts")/n).toFixed(1),
-          reb:+(sum("reb")/n).toFixed(1),
-          ast:+(sum("ast")/n).toFixed(1),
-          stl:+(sum("stl")/n).toFixed(1),
-          blk:+(sum("blk")/n).toFixed(1),
-          to_:+(sum("to_")/n).toFixed(1),
-          plus_minus:+(sum("plus_minus")/n).toFixed(1),
-          fg:fga>0?+((fgm/fga)*100).toFixed(1):0,
-          threept:tpa>0?+((tpm/tpa)*100).toFixed(1):0,
-          ft:fta>0?+((ftm/fta)*100).toFixed(1):0,
-        };
-      });
-      setStatsMap(avg);
-    }
-    setLoading(false);
-  };
 
   const getVal=(p,k)=>{
     const s=statsMap[p.id];
     if(s&&s[k]!==undefined) return s[k];
-    // fallback to player profile fields
-    return p[k]??0;
+    return 0; // show 0 until real game stats are entered
   };
 
   const sorted=[...players].sort((a,b)=>getVal(b,sort)-getVal(a,sort));
@@ -432,7 +397,6 @@ function Statistics({players}){
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
         {cols.map(c=><button key={c.k} onClick={()=>setSort(c.k)} style={{...S.btn(sort===c.k?"primary":"secondary"),padding:"5px 13px",fontSize:12}}>{c.l}</button>)}
       </div>
-      {loading?<Spinner/>:(
       <div style={S.card}>
         <div style={{overflowX:"auto"}}>
           <table style={S.table}>
@@ -441,7 +405,7 @@ function Statistics({players}){
               {cols.map(c=><th key={c.k} style={{...S.th,color:sort===c.k?BRAND.gold:BRAND.textSecondary}}>{c.l}</th>)}
             </tr></thead>
             <tbody>{sorted.map(p=>{
-              const gp=statsMap[p.id]?.gp??p.gp??0;
+              const gp=statsMap[p.id]?.gp??0;
               return(
               <tr key={p.id}>
                 <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/><span style={{fontWeight:600}}>{p.name}</span></div></td>
@@ -462,7 +426,6 @@ function Statistics({players}){
           </table>
         </div>
       </div>
-      )}
     </div>
   );
 }
@@ -1650,11 +1613,45 @@ export default function App(){
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
   const [authLoading,setAuthLoading]=useState(true);
+  const [globalStatsMap,setGlobalStatsMap]=useState({});
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
-    const{data}=await supabase.from("players").select("*").order("jersey",{ascending:true});
+    const[{data},{data:gsData}]=await Promise.all([
+      supabase.from("players").select("*").order("jersey",{ascending:true}),
+      supabase.from("game_stats").select("*")
+    ]);
     if(data) setPlayers(data);
+    // Build averages map from game_stats
+    if(gsData&&gsData.length>0){
+      const grouped={};
+      gsData.forEach(r=>{
+        if(!grouped[r.player_id]) grouped[r.player_id]=[];
+        grouped[r.player_id].push(r);
+      });
+      const avg={};
+      Object.entries(grouped).forEach(([pid,rows])=>{
+        const n=rows.length;
+        const sum=(f)=>rows.reduce((s,r)=>s+(r[f]||0),0);
+        const fgm=sum("fgm"),fga=sum("fga"),tpm=sum("tpm"),tpa=sum("tpa"),ftm=sum("ftm"),fta=sum("fta");
+        avg[pid]={
+          gp:n,
+          pts:+(sum("pts")/n).toFixed(1),
+          reb:+(sum("reb")/n).toFixed(1),
+          ast:+(sum("ast")/n).toFixed(1),
+          stl:+(sum("stl")/n).toFixed(1),
+          blk:+(sum("blk")/n).toFixed(1),
+          to_:+(sum("to_")/n).toFixed(1),
+          plus_minus:+(sum("plus_minus")/n).toFixed(1),
+          fg:fga>0?+((fgm/fga)*100).toFixed(1):0,
+          threept:tpa>0?+((tpm/tpa)*100).toFixed(1):0,
+          ft:fta>0?+((ftm/fta)*100).toFixed(1):0,
+        };
+      });
+      setGlobalStatsMap(avg);
+    } else {
+      setGlobalStatsMap({});
+    }
     setPlayersLoading(false);
     return data;
   };
@@ -1720,8 +1717,8 @@ export default function App(){
 
   const adminPages={
     dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
-    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading}/>,
-    stats:<Statistics players={players}/>,
+    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading} statsMap={globalStatsMap}/>,
+    stats:<Statistics players={players} statsMap={globalStatsMap}/>,
     attendance:<AdminAttendance players={players}/>,
     practice:<Practice/>,
     league:<League/>,
