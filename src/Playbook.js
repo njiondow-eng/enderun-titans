@@ -11,21 +11,28 @@ const BRAND = {
 };
 
 const S = {
-  btn:(v="primary")=>({ padding:"7px 16px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, border:"none",
+  btn:(v="primary")=>({ padding:"8px 16px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600, border:"none",
     background:v==="primary"?BRAND.crimson:v==="gold"?BRAND.gold:v==="danger"?"#7f1d1d":v==="green"?"#14532d":v==="active"?`${BRAND.crimson}55`:BRAND.surfaceLight,
     color:v==="gold"?BRAND.black:BRAND.textPrimary, display:"flex", alignItems:"center", gap:6 }),
-  input:{ background:BRAND.charcoal, border:`1px solid ${BRAND.border}`, borderRadius:8, padding:"7px 11px", color:BRAND.textPrimary, fontSize:13, outline:"none", width:"100%" },
+  input:{ background:BRAND.charcoal, border:`1px solid ${BRAND.border}`, borderRadius:8, padding:"8px 12px", color:BRAND.textPrimary, fontSize:13, outline:"none", width:"100%", boxSizing:"border-box" },
   card:{ background:BRAND.surfaceLight, border:`1px solid ${BRAND.border}`, borderRadius:12, padding:"16px 20px", marginBottom:16 },
   pill:(c)=>({ padding:"3px 10px", borderRadius:10, fontSize:11, fontWeight:600, background:`${c}22`, color:c, display:"inline-block" }),
 };
 
-const PLAYER_COLORS = ["#ef4444","#3b82f6","#22c55e","#f59e0b","#a855f7"];
 const DEFAULT_PLAYERS = [
   { id:1, label:"PG", x:0.5,  y:0.82, color:"#ef4444" },
   { id:2, label:"SG", x:0.25, y:0.68, color:"#3b82f6" },
   { id:3, label:"SF", x:0.75, y:0.68, color:"#22c55e" },
   { id:4, label:"PF", x:0.3,  y:0.42, color:"#f59e0b" },
   { id:5, label:"C",  x:0.7,  y:0.42, color:"#a855f7" },
+];
+
+const DEFAULT_DEFENDERS = [
+  { id:11, label:"X1", x:0.5,  y:0.74, color:"#f87171" },
+  { id:12, label:"X2", x:0.24, y:0.61, color:"#f87171" },
+  { id:13, label:"X3", x:0.76, y:0.61, color:"#f87171" },
+  { id:14, label:"X4", x:0.29, y:0.36, color:"#f87171" },
+  { id:15, label:"X5", x:0.71, y:0.36, color:"#f87171" },
 ];
 
 const LINE_TYPES = [
@@ -37,41 +44,7 @@ const LINE_TYPES = [
 
 const PLAY_CATEGORIES = ["Offense","Defense","Set Plays","Out of Bounds","Transition","Press Break"];
 
-// ── Parse text frames into animation steps ──
-// Format: "1. PG pass to C | 2. SG cut to basket | 3. PF set screen"
-function parseFrames(text, players) {
-  if (!text) return [];
-  const lines = text.split(/\n|\|/).map(l=>l.trim()).filter(Boolean);
-  const frames = [];
-  lines.forEach(line => {
-    // Remove numbering like "1." or "Step 1:"
-    const clean = line.replace(/^(\d+[\.\)]|step\s*\d+[:.]?)\s*/i,"").trim();
-    if (!clean) return;
-    // Try to parse "X action to/toward Y"
-    const actionMap = {
-      pass: "pass", passes: "pass",
-      cut: "cut", cuts: "cut", "cuts to": "cut",
-      dribble: "dribble", dribbles: "dribble", "drives to": "dribble", drives: "dribble",
-      screen: "screen", screens: "screen", "sets screen": "screen", "set screen": "screen",
-      move: "cut", moves: "cut", runs: "cut",
-    };
-    let fromLabel = null, toLabel = null, actionType = "pass";
-    const lower = clean.toLowerCase();
-    // Find action type
-    for (const [kw, type] of Object.entries(actionMap)) {
-      if (lower.includes(kw)) { actionType = type; break; }
-    }
-    // Find player labels mentioned
-    const labels = ["PG","SG","SF","PF","C"];
-    const mentioned = labels.filter(l => lower.includes(l.toLowerCase()));
-    if (mentioned.length >= 2) { fromLabel = mentioned[0]; toLabel = mentioned[1]; }
-    else if (mentioned.length === 1) { fromLabel = mentioned[0]; }
-    const fromPlayer = players.find(p => p.label === fromLabel);
-    const toPlayer = players.find(p => p.label === toLabel);
-    frames.push({ description: clean, actionType, fromLabel, toLabel, fromId: fromPlayer?.id, toId: toPlayer?.id });
-  });
-  return frames;
-}
+const QUICK_TAGS = ["Half-court","Full-court","Late game","vs Zone","vs Man","BLOB","SLOB","Pick & Roll","Post up","Fast Break","Horns","Press Break"];
 
 function Court({ width, height }) {
   const sx = w => w * width, sy = h => h * height;
@@ -104,27 +77,98 @@ function arrowHead(x1,y1,x2,y2,color) {
   return <polygon points={`${x2},${y2} ${x2-len*Math.cos(a1)},${y2-len*Math.sin(a1)} ${x2-len*Math.cos(a2)},${y2-len*Math.sin(a2)}`} fill={color}/>;
 }
 
-// ── PLAY EDITOR ──
-function PlayEditor({ play, onSave, onCancel, readOnly }) {
+function exportPNG(svgEl, playName) {
+  if (!svgEl) return;
+  const svgData = new XMLSerializer().serializeToString(svgEl);
+  const canvas = document.createElement("canvas");
+  canvas.width = svgEl.width.baseVal.value * 2;
+  canvas.height = svgEl.height.baseVal.value * 2;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(2, 2);
+  const img = new Image();
+  const blob = new Blob([svgData], {type:"image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    const link = document.createElement("a");
+    link.download = `${playName||"play"}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+  img.src = url;
+}
+
+// ── COURT CANVAS — used for both creating and viewing ──
+function CourtCanvas({ players, defenders, lines, showDefenders, animating, animStep, animPlayers,
+  tool, lineType, drawing, onMouseDown, onMouseMove, onMouseUp, svgRef, W, H, readOnly }) {
+  const displayPlayers = animating && animPlayers ? animPlayers : players;
+  return (
+    <svg ref={svgRef} width={W} height={H}
+      style={{display:"block",borderRadius:10,cursor:(!readOnly&&tool==="draw")?"crosshair":"default",userSelect:"none",border:`1px solid ${BRAND.border}`}}
+      onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
+      onTouchStart={onMouseDown} onTouchMove={onMouseMove} onTouchEnd={onMouseUp}>
+      <Court width={W} height={H}/>
+      {/* Lines */}
+      {lines.map((ln,i)=>{
+        const x1=ln.x1*W,y1=ln.y1*H,x2=ln.x2*W,y2=ln.y2*H;
+        const animated = animating && animStep > i;
+        return (
+          <g key={ln.id||i} opacity={animated?1:0.9}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={ln.color} strokeWidth={2.5} strokeDasharray={ln.dash.join(",")} opacity={0.9}/>
+            {ln.arrow && arrowHead(x1,y1,x2,y2,ln.color)}
+            {animated && <circle cx={x2} cy={y2} r={6} fill={ln.color} opacity={0.5}/>}
+          </g>
+        );
+      })}
+      {/* Preview line while drawing */}
+      {drawing && <line x1={drawing.x1*W} y1={drawing.y1*H} x2={drawing.x2*W} y2={drawing.y2*H}
+        stroke={LINE_TYPES.find(l=>l.id===lineType)?.color||"#fff"} strokeWidth={2} strokeDasharray="6,3" opacity={0.7}/>}
+      {/* Attackers */}
+      {displayPlayers.map(p=>(
+        <g key={p.id} style={{transition:animating?"all 0.7s ease":"none"}}>
+          <circle cx={p.x*W} cy={p.y*H} r={16} fill={p.color} stroke="#fff" strokeWidth={2} opacity={0.92}/>
+          <text x={p.x*W} y={p.y*H+5} textAnchor="middle" fill="#fff" fontSize={12} fontWeight={700}>{p.label}</text>
+        </g>
+      ))}
+      {/* Defenders as X */}
+      {showDefenders && defenders.map(d=>(
+        <g key={d.id}>
+          <line x1={d.x*W-11} y1={d.y*H-11} x2={d.x*W+11} y2={d.y*H+11} stroke={d.color} strokeWidth={3} strokeLinecap="round"/>
+          <line x1={d.x*W+11} y1={d.y*H-11} x2={d.x*W-11} y2={d.y*H+11} stroke={d.color} strokeWidth={3} strokeLinecap="round"/>
+          <text x={d.x*W} y={d.y*H+24} textAnchor="middle" fill={d.color} fontSize={9} fontWeight={700}>{d.label}</text>
+        </g>
+      ))}
+      {animating && <text x={W-10} y={20} textAnchor="end" fill={BRAND.gold} fontSize={12} fontWeight={700}>Step {animStep}/{lines.length}</text>}
+    </svg>
+  );
+}
+
+// ── PLAY CREATOR (coach) — streamlined ──
+function PlayCreator({ play, onSave, onCancel }) {
   const svgRef = useRef(null);
+  const animRef = useRef(null);
+  const W = 370, H = 510;
+
   const [players, setPlayers] = useState(play?.players_data || DEFAULT_PLAYERS.map(p=>({...p})));
+  const [defenders, setDefenders] = useState(play?.defenders_data?.length ? play.defenders_data : DEFAULT_DEFENDERS.map(d=>({...d})));
+  const [showDefenders, setShowDefenders] = useState((play?.defenders_data||[]).length > 0);
   const [lines, setLines] = useState(play?.lines_data || []);
   const [lineType, setLineType] = useState("pass");
-  const [tool, setTool] = useState("select");
-  const [dragging, setDragging] = useState(null);
+  const [tool, setTool] = useState("select"); // "select" | "draw"
+  const [dragging, setDragging] = useState(null); // {id, isDefender}
   const [drawing, setDrawing] = useState(null);
-  const [name, setName] = useState(play?.name || "New Play");
+  const [name, setName] = useState(play?.name || "");
   const [category, setCategory] = useState(play?.category || "Offense");
+  const [tags, setTags] = useState(play?.tags || []);
   const [notes, setNotes] = useState(play?.notes || "");
-  const [frameText, setFrameText] = useState(play?.frames?.map((f,i)=>`${i+1}. ${f.description||""}`).join("\n")||"");
-  const [parsedFrames, setParsedFrames] = useState(play?.frames||[]);
+  const [saving, setSaving] = useState(false);
+  // animate
   const [animating, setAnimating] = useState(false);
   const [animStep, setAnimStep] = useState(0);
   const [animPlayers, setAnimPlayers] = useState(null);
-  const [animMode, setAnimMode] = useState("draw"); // draw | frames
-  const [saving, setSaving] = useState(false);
-  const animRef = useRef(null);
-  const W = 380, H = 520;
+
+  const allMovable = [...players, ...(showDefenders ? defenders : [])];
 
   const getSVGPos = useCallback((e) => {
     const svg = svgRef.current; if (!svg) return {x:0,y:0};
@@ -135,84 +179,67 @@ function PlayEditor({ play, onSave, onCancel, readOnly }) {
   }, []);
 
   const handleMouseDown = useCallback((e) => {
-    if (readOnly||animating) return;
+    if (animating) return;
     const pos = getSVGPos(e);
     if (tool==="select") {
-      const hit = players.find(p=>Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<18);
-      if (hit) setDragging(hit.id);
-    } else if (tool==="draw") {
-      const hit = players.find(p=>Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<18);
+      const hitD = showDefenders && defenders.find(p=>Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<20);
+      if (hitD) { setDragging({id:hitD.id,isDefender:true}); return; }
+      const hit = players.find(p=>Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<20);
+      if (hit) setDragging({id:hit.id,isDefender:false});
+    } else {
+      const hit = allMovable.find(p=>Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<20);
       if (hit) setDrawing({fromId:hit.id,x1:hit.x,y1:hit.y,x2:pos.x,y2:pos.y});
     }
-  },[tool,players,readOnly,animating,getSVGPos]);
+  },[tool,players,defenders,showDefenders,animating,getSVGPos,allMovable]);
 
   const handleMouseMove = useCallback((e) => {
-    if (readOnly||animating) return;
+    if (animating) return;
     const pos = getSVGPos(e);
-    if (dragging!==null) setPlayers(ps=>ps.map(p=>p.id===dragging?{...p,x:Math.max(0.05,Math.min(0.95,pos.x)),y:Math.max(0.05,Math.min(0.95,pos.y))}:p));
+    if (dragging) {
+      const clamp = v => Math.max(0.04, Math.min(0.96, v));
+      if (dragging.isDefender) setDefenders(ds=>ds.map(p=>p.id===dragging.id?{...p,x:clamp(pos.x),y:clamp(pos.y)}:p));
+      else setPlayers(ps=>ps.map(p=>p.id===dragging.id?{...p,x:clamp(pos.x),y:clamp(pos.y)}:p));
+    }
     if (drawing) setDrawing(d=>({...d,x2:pos.x,y2:pos.y}));
-  },[dragging,drawing,readOnly,animating,getSVGPos]);
+  },[dragging,drawing,animating,getSVGPos]);
 
   const handleMouseUp = useCallback((e) => {
-    if (readOnly||animating) return;
+    if (animating) return;
     const pos = getSVGPos(e);
-    if (dragging!==null) setDragging(null);
+    setDragging(null);
     if (drawing) {
-      const hit = players.find(p=>p.id!==drawing.fromId&&Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<18);
+      const hit = allMovable.find(p=>p.id!==drawing.fromId&&Math.hypot((p.x-pos.x)*W,(p.y-pos.y)*H)<20);
       const lt = LINE_TYPES.find(l=>l.id===lineType);
-      setLines(ls=>[...ls,{id:Date.now(),type:lineType,color:lt.color,dash:lt.dash,arrow:lt.arrow,fromId:drawing.fromId,toId:hit?.id||null,x1:drawing.x1,y1:drawing.y1,x2:pos.x,y2:pos.y}]);
+      setLines(ls=>[...ls,{id:Date.now(),type:lineType,color:lt.color,dash:lt.dash,arrow:lt.arrow,fromId:drawing.fromId,x1:drawing.x1,y1:drawing.y1,x2:pos.x,y2:pos.y,toId:hit?.id||null}]);
       setDrawing(null);
     }
-  },[drawing,dragging,players,lineType,readOnly,animating,getSVGPos]);
+  },[drawing,allMovable,lineType,animating,getSVGPos]);
 
-  // Parse frame text → frames
-  const handleFrameTextChange = (txt) => {
-    setFrameText(txt);
-    const parsed = parseFrames(txt, players);
-    setParsedFrames(parsed);
-  };
-
-  // Build lines from parsed frames for animation
-  const buildFrameLines = () => {
-    return parsedFrames.filter(f=>f.fromId).map((f,i)=>{
-      const from = players.find(p=>p.id===f.fromId);
-      const to = players.find(p=>p.id===f.toId);
-      const lt = LINE_TYPES.find(l=>l.id===f.actionType)||LINE_TYPES[0];
-      const tx = to?to.x:from.x+(Math.random()*0.3-0.15);
-      const ty = to?to.y:from.y-0.2;
-      return {id:i,type:lt.id,color:lt.color,dash:lt.dash,arrow:lt.arrow,fromId:f.fromId,toId:f.toId||null,x1:from.x,y1:from.y,x2:tx,y2:ty};
-    });
-  };
-
-  const activeLines = animMode==="frames" ? buildFrameLines() : lines;
-
-  // Animation
   const startAnim = () => {
-    if (activeLines.length===0) return;
+    if (lines.length===0) return;
     setAnimStep(0); setAnimPlayers(players.map(p=>({...p}))); setAnimating(true);
   };
-
   useEffect(()=>{
     if (!animating) return;
-    const steps = activeLines.length; let step = 0;
-    const run = () => {
-      if (step>=steps) { setAnimating(false); setAnimPlayers(null); return; }
-      const line = activeLines[step];
-      if (line.toId) setAnimPlayers(prev=>prev.map(p=>p.id===line.fromId?{...p,x:line.x2,y:line.y2}:p));
+    let step=0;
+    const run=()=>{
+      if (step>=lines.length) { setAnimating(false); setAnimPlayers(null); return; }
+      const ln=lines[step];
+      if (ln.toId) setAnimPlayers(prev=>prev.map(p=>p.id===ln.fromId?{...p,x:ln.x2,y:ln.y2}:p));
       setAnimStep(step+1); step++;
-      animRef.current = setTimeout(run, 800);
+      animRef.current=setTimeout(run,800);
     };
-    animRef.current = setTimeout(run, 400);
+    animRef.current=setTimeout(run,400);
     return ()=>clearTimeout(animRef.current);
   },[animating]);
+  const stopAnim=()=>{ clearTimeout(animRef.current); setAnimating(false); setAnimPlayers(null); };
 
-  const stopAnim = () => { clearTimeout(animRef.current); setAnimating(false); setAnimPlayers(null); };
-  const displayPlayers = animating&&animPlayers ? animPlayers : players;
+  const toggleTag = t => setTags(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]);
 
   const save = async () => {
+    if (!name.trim()) { alert("Please enter a play name"); return; }
     setSaving(true);
-    const frames = animMode==="frames" ? parsedFrames : [];
-    const data = { name, category, notes, players_data:players, lines_data:lines, frames };
+    const data = { name:name.trim(), category, tags, notes, players_data:players, defenders_data:showDefenders?defenders:[], lines_data:lines, frames:[] };
     if (play?.id) await supabase.from("plays").update(data).eq("id",play.id);
     else await supabase.from("plays").insert([data]);
     setSaving(false);
@@ -220,299 +247,330 @@ function PlayEditor({ play, onSave, onCancel, readOnly }) {
   };
 
   return (
-    <div style={{display:"flex",gap:18,flexWrap:"wrap"}}>
-      {/* Canvas */}
+    <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
+      {/* LEFT: Court */}
       <div style={{flex:"none"}}>
-        {!readOnly && (
-          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
-            <div style={{display:"flex",gap:4,background:BRAND.charcoal,borderRadius:8,padding:4}}>
-              <button onClick={()=>setAnimMode("draw")} style={{...S.btn(animMode==="draw"?"active":"secondary"),fontSize:11}}>✏️ Draw</button>
-              <button onClick={()=>setAnimMode("frames")} style={{...S.btn(animMode==="frames"?"active":"secondary"),fontSize:11}}>📋 Frame Breakdown</button>
-            </div>
-            {animMode==="draw" && <>
-              <button onClick={()=>setTool("select")} style={S.btn(tool==="select"?"active":"secondary")}>🖱️ Select</button>
-              <button onClick={()=>setTool("draw")} style={S.btn(tool==="draw"?"active":"secondary")}>✏️ Draw</button>
-              {LINE_TYPES.map(lt=>(
-                <button key={lt.id} onClick={()=>{setLineType(lt.id);setTool("draw");}}
-                  style={{...S.btn(lineType===lt.id&&tool==="draw"?"active":"secondary"),borderLeft:`3px solid ${lt.color}`,fontSize:11}}>
-                  {lt.label}
-                </button>
-              ))}
-              <button onClick={()=>setLines(ls=>ls.slice(0,-1))} style={S.btn("secondary")}>↩️</button>
-              <button onClick={()=>setLines([])} style={S.btn("danger")}>🗑️</button>
-            </>}
-          </div>
-        )}
-        <svg ref={svgRef} width={W} height={H}
-          style={{display:"block",borderRadius:10,cursor:tool==="draw"&&animMode==="draw"?"crosshair":"default",userSelect:"none",border:`1px solid ${BRAND.border}`}}
-          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
-          onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp}>
-          <Court width={W} height={H}/>
-          {/* Lines */}
-          {activeLines.map((ln,i)=>{
-            const x1=ln.x1*W,y1=ln.y1*H,x2=ln.x2*W,y2=ln.y2*H;
-            const animated=animating&&animStep>i;
-            return(
-              <g key={ln.id||i} opacity={animated?1:0.9}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={ln.color} strokeWidth={2.5} strokeDasharray={ln.dash.join(",")} opacity={0.9}/>
-                {ln.arrow&&arrowHead(x1,y1,x2,y2,ln.color)}
-                {animated&&<circle cx={x2} cy={y2} r={6} fill={ln.color} opacity={0.5}/>}
-              </g>
-            );
-          })}
-          {drawing&&<line x1={drawing.x1*W} y1={drawing.y1*H} x2={drawing.x2*W} y2={drawing.y2*H} stroke={LINE_TYPES.find(l=>l.id===lineType)?.color||"#fff"} strokeWidth={2} strokeDasharray="6,3" opacity={0.7}/>}
-          {/* Players */}
-          {displayPlayers.map(p=>(
-            <g key={p.id} style={{transition:animating?"all 0.7s ease":"none"}}>
-              <circle cx={p.x*W} cy={p.y*H} r={16} fill={p.color} stroke="#fff" strokeWidth={2} opacity={0.92}/>
-              <text x={p.x*W} y={p.y*H+5} textAnchor="middle" fill="#fff" fontSize={12} fontWeight={700}>{p.label}</text>
-            </g>
+        {/* Toolbar */}
+        <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={()=>setTool("select")} style={{...S.btn(tool==="select"?"active":"secondary"),fontSize:11}}>🖱️ Move</button>
+          <button onClick={()=>setTool("draw")} style={{...S.btn(tool==="draw"?"active":"secondary"),fontSize:11}}>✏️ Draw</button>
+          {tool==="draw" && LINE_TYPES.map(lt=>(
+            <button key={lt.id} onClick={()=>setLineType(lt.id)}
+              style={{...S.btn(lineType===lt.id?"active":"secondary"),borderLeft:`3px solid ${lt.color}`,fontSize:11}}>
+              {lt.label}
+            </button>
           ))}
-          {animating&&<text x={W-10} y={20} textAnchor="end" fill={BRAND.gold} fontSize={12} fontWeight={700}>Step {animStep}/{activeLines.length}</text>}
-          {/* Frame label */}
-          {animating&&animMode==="frames"&&parsedFrames[animStep-1]&&(
-            <g>
-              <rect x={4} y={H-38} width={W-8} height={30} rx={6} fill="#000a"/>
-              <text x={W/2} y={H-18} textAnchor="middle" fill={BRAND.gold} fontSize={12}>{parsedFrames[animStep-1].description}</text>
-            </g>
-          )}
-        </svg>
-        {/* Anim controls */}
+          <button onClick={()=>setLines(ls=>ls.slice(0,-1))} style={{...S.btn("secondary"),fontSize:11}} title="Undo">↩️</button>
+          <button onClick={()=>setLines([])} style={{...S.btn("danger"),fontSize:11}} title="Clear lines">🗑️</button>
+          <button onClick={()=>setShowDefenders(s=>!s)} style={{...S.btn(showDefenders?"active":"secondary"),fontSize:11,borderLeft:`3px solid #f87171`}}>
+            {showDefenders?"✕ Hide X":"✕ Show X"}
+          </button>
+        </div>
+
+        <CourtCanvas
+          svgRef={svgRef} W={W} H={H}
+          players={players} defenders={defenders} showDefenders={showDefenders}
+          lines={lines} lineType={lineType} tool={tool} drawing={drawing}
+          animating={animating} animStep={animStep} animPlayers={animPlayers}
+          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+        />
+
+        {/* Bottom controls */}
         <div style={{display:"flex",gap:8,marginTop:10,justifyContent:"center",flexWrap:"wrap"}}>
           {animating
             ? <button onClick={stopAnim} style={S.btn("danger")}>⏹ Stop</button>
-            : <button onClick={startAnim} disabled={activeLines.length===0} style={{...S.btn("green"),opacity:activeLines.length===0?0.5:1}}>▶ Animate Play</button>
+            : <button onClick={startAnim} disabled={lines.length===0} style={{...S.btn("green"),opacity:lines.length===0?0.4:1}}>▶ Preview Animation</button>
           }
-          {!readOnly&&<button onClick={()=>setPlayers(DEFAULT_PLAYERS.map(p=>({...p})))} style={S.btn("secondary")}>🔄 Reset Players</button>}
+          <button onClick={()=>setPlayers(DEFAULT_PLAYERS.map(p=>({...p})))} style={{...S.btn("secondary"),fontSize:11}}>🔄 Reset</button>
+          <button onClick={()=>exportPNG(svgRef.current, name||"play")} style={{...S.btn("secondary"),fontSize:11}}>📥 PNG</button>
         </div>
-        {/* Legend */}
-        <div style={{display:"flex",gap:12,marginTop:10,flexWrap:"wrap",justifyContent:"center"}}>
+
+        {/* Line legend */}
+        <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap",justifyContent:"center"}}>
           {LINE_TYPES.map(lt=>(
-            <div key={lt.id} style={{display:"flex",alignItems:"center",gap:5}}>
-              <svg width={24} height={8}><line x1={0} y1={4} x2={24} y2={4} stroke={lt.color} strokeWidth={2.5} strokeDasharray={lt.dash.join(",")}/></svg>
-              <span style={{fontSize:11,color:BRAND.textSecondary}}>{lt.label}</span>
+            <div key={lt.id} style={{display:"flex",alignItems:"center",gap:4}}>
+              <svg width={22} height={8}><line x1={0} y1={4} x2={22} y2={4} stroke={lt.color} strokeWidth={2.5} strokeDasharray={lt.dash.join(",")}/></svg>
+              <span style={{fontSize:10,color:BRAND.textSecondary}}>{lt.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Right panel */}
-      <div style={{flex:1,minWidth:240}}>
-        {!readOnly ? (
-          <>
-            <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Play Name</label>
-              <input value={name} onChange={e=>setName(e.target.value)} style={S.input}/>
-            </div>
-            <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Category</label>
-              <select value={category} onChange={e=>setCategory(e.target.value)} style={S.input}>
-                {PLAY_CATEGORIES.map(c=><option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Coach Notes</label>
-              <textarea value={notes} onChange={e=>setNotes(e.target.value)} style={{...S.input,height:70,resize:"vertical"}} placeholder="Key reads, timing, options…"/>
-            </div>
-
-            {/* Frame Breakdown */}
-            <div style={{...S.card,background:BRAND.charcoal,marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:13,color:BRAND.gold,marginBottom:8}}>📋 Animation Frame Breakdown</div>
-              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:8,lineHeight:1.6}}>
-                Write each action on a new line. Mention player positions (PG, SG, SF, PF, C) and actions (pass, cut, dribble, screen).<br/>
-                <span style={{color:BRAND.gold}}>Example:</span><br/>
-                1. PG dribble toward C<br/>
-                2. C set screen for SG<br/>
-                3. PG pass to SF<br/>
-                4. SG cut to basket
-              </div>
-              <textarea
-                value={frameText}
-                onChange={e=>handleFrameTextChange(e.target.value)}
-                style={{...S.input,height:120,resize:"vertical",fontFamily:"monospace",fontSize:12}}
-                placeholder={"1. PG pass to C\n2. SG cut to basket\n3. PF set screen for SF\n4. C dribble to elbow"}
-              />
-              {parsedFrames.length>0&&(
-                <div style={{marginTop:10}}>
-                  <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>Parsed {parsedFrames.length} actions:</div>
-                  {parsedFrames.map((f,i)=>{
-                    const lt=LINE_TYPES.find(l=>l.id===f.actionType);
-                    return(
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                        <span style={{fontSize:11,fontWeight:700,color:BRAND.gold,minWidth:20}}>{i+1}.</span>
-                        <svg width={20} height={8}><line x1={0} y1={4} x2={20} y2={4} stroke={lt?.color||"#fff"} strokeWidth={2} strokeDasharray={(lt?.dash||[]).join(",")}/></svg>
-                        <span style={{fontSize:11,color:lt?.color||"#fff"}}>{lt?.label}</span>
-                        <span style={{fontSize:11,color:BRAND.textPrimary}}>{f.fromLabel}{f.toLabel?` → ${f.toLabel}`:""}</span>
-                        <span style={{fontSize:10,color:BRAND.textSecondary,flex:1,textAlign:"right"}}>{f.description}</span>
-                      </div>
-                    );
-                  })}
-                  <button onClick={()=>{setAnimMode("frames");startAnim();}} style={{...S.btn("green"),marginTop:8,width:"100%",justifyContent:"center"}}>▶ Preview Frame Animation</button>
-                </div>
-              )}
-            </div>
-
-            <div style={{...S.card,background:BRAND.charcoal,marginBottom:12,fontSize:12,color:BRAND.textSecondary,lineHeight:1.7}}>
-              <div style={{fontWeight:700,color:BRAND.textPrimary,marginBottom:6}}>How to use:</div>
-              <div>🖱️ <b>Select</b> tab → drag players to starting positions</div>
-              <div>✏️ <b>Draw</b> tab → click player, drag to target</div>
-              <div>📋 <b>Frame Breakdown</b> → type steps, auto-animates</div>
-              <div>▶ Press <b>Animate</b> to preview</div>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={onCancel} style={S.btn("secondary")}>Cancel</button>
-              <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"💾 Save Play"}</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>{play.name}</div>
-            <div style={{marginBottom:10}}><span style={S.pill(BRAND.gold)}>{play.category}</span></div>
-            {play.notes&&<div style={{...S.card,fontSize:13,color:BRAND.textSecondary,lineHeight:1.7}}><div style={{fontWeight:700,color:BRAND.textPrimary,marginBottom:6}}>📋 Coach Notes</div>{play.notes}</div>}
-            {play.frames?.length>0&&(
-              <div style={{...S.card}}>
-                <div style={{fontWeight:600,color:BRAND.textPrimary,marginBottom:10}}>Animation Steps ({play.frames.length})</div>
-                {play.frames.map((f,i)=>{
-                  const lt=LINE_TYPES.find(l=>l.id===f.actionType);
-                  return(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                      <span style={{fontSize:12,fontWeight:700,color:BRAND.gold,minWidth:24}}>{i+1}.</span>
-                      <svg width={20} height={8}><line x1={0} y1={4} x2={20} y2={4} stroke={lt?.color||"#fff"} strokeWidth={2} strokeDasharray={(lt?.dash||[]).join(",")}/></svg>
-                      <span style={{fontSize:12,color:lt?.color}}>{lt?.label}</span>
-                      <span style={{fontSize:12}}>{f.fromLabel}{f.toLabel?` → ${f.toLabel}`:""}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {play.lines_data?.length>0&&(
-              <div style={{...S.card,fontSize:12,color:BRAND.textSecondary}}>
-                <div style={{fontWeight:600,color:BRAND.textPrimary,marginBottom:8}}>Drawn Actions ({play.lines_data.length})</div>
-                {play.lines_data.map((ln,i)=>{
-                  const lt=LINE_TYPES.find(l=>l.id===ln.type);
-                  const from=play.players_data?.find(p=>p.id===ln.fromId);
-                  const to=play.players_data?.find(p=>p.id===ln.toId);
-                  return(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
-                      <svg width={20} height={8}><line x1={0} y1={4} x2={20} y2={4} stroke={lt?.color||"#fff"} strokeWidth={2} strokeDasharray={(lt?.dash||[]).join(",")}/></svg>
-                      <span style={{color:lt?.color}}>{lt?.label}</span>
-                      <span>{from?.label}{to?` → ${to.label}`:""}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <button onClick={onCancel} style={S.btn("secondary")}>← Back to Playbook</button>
-          </>
-        )}
+      {/* RIGHT: Play info — compact */}
+      <div style={{flex:1,minWidth:220,maxWidth:320}}>
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Play Name *</label>
+          <input value={name} onChange={e=>setName(e.target.value)} style={S.input} placeholder="e.g. Horns Action"/>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Category</label>
+          <select value={category} onChange={e=>setCategory(e.target.value)} style={S.input}>
+            {PLAY_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>Tags <span style={{color:BRAND.border}}>(optional)</span></label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {QUICK_TAGS.map(t=>(
+              <button key={t} onClick={()=>toggleTag(t)}
+                style={{padding:"3px 9px",borderRadius:8,fontSize:11,cursor:"pointer",border:"none",
+                  background:tags.includes(t)?`${BRAND.gold}33`:BRAND.charcoal,
+                  color:tags.includes(t)?BRAND.gold:BRAND.textSecondary,
+                  outline:tags.includes(t)?`1px solid ${BRAND.gold}`:`1px solid ${BRAND.border}`}}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Notes <span style={{color:BRAND.border}}>(optional)</span></label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)}
+            style={{...S.input,height:60,resize:"vertical"}} placeholder="Key reads, timing…"/>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onCancel} style={S.btn("secondary")}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{...S.btn("gold"),flex:1,justifyContent:"center"}}>
+            {saving?"Saving…":"💾 Save Play"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── PLAYBOOK MODULE ──
+// ── PLAY VIEWER — interactive replay ──
+function PlayViewer({ play, onBack, onEdit, isAdmin }) {
+  const svgRef = useRef(null);
+  const animRef = useRef(null);
+  const W = 370, H = 510;
+  const [animating, setAnimating] = useState(false);
+  const [animStep, setAnimStep] = useState(0);
+  const [animPlayers, setAnimPlayers] = useState(null);
+
+  const players = play.players_data || DEFAULT_PLAYERS;
+  const defenders = play.defenders_data || [];
+  const lines = play.lines_data || [];
+  const showDefenders = defenders.length > 0;
+
+  const startAnim = () => {
+    if (lines.length===0) return;
+    setAnimStep(0); setAnimPlayers(players.map(p=>({...p}))); setAnimating(true);
+  };
+  useEffect(()=>{
+    if (!animating) return;
+    let step=0;
+    const run=()=>{
+      if (step>=lines.length) { setAnimating(false); setAnimPlayers(null); return; }
+      const ln=lines[step];
+      if (ln.toId) setAnimPlayers(prev=>prev.map(p=>p.id===ln.fromId?{...p,x:ln.x2,y:ln.y2}:p));
+      setAnimStep(step+1); step++;
+      animRef.current=setTimeout(run,800);
+    };
+    animRef.current=setTimeout(run,400);
+    return ()=>clearTimeout(animRef.current);
+  },[animating]);
+  const stopAnim=()=>{ clearTimeout(animRef.current); setAnimating(false); setAnimPlayers(null); };
+
+  return (
+    <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"flex-start"}}>
+      <div style={{flex:"none"}}>
+        <CourtCanvas
+          svgRef={svgRef} W={W} H={H}
+          players={players} defenders={defenders} showDefenders={showDefenders}
+          lines={lines} lineType="pass" tool="select" drawing={null}
+          animating={animating} animStep={animStep} animPlayers={animPlayers}
+          onMouseDown={()=>{}} onMouseMove={()=>{}} onMouseUp={()=>{}}
+          readOnly
+        />
+        <div style={{display:"flex",gap:8,marginTop:10,justifyContent:"center",flexWrap:"wrap"}}>
+          {animating
+            ? <button onClick={stopAnim} style={S.btn("danger")}>⏹ Stop</button>
+            : <button onClick={startAnim} disabled={lines.length===0} style={{...S.btn("green"),opacity:lines.length===0?0.4:1}}>▶ Animate Play</button>
+          }
+          <button onClick={()=>exportPNG(svgRef.current, play.name)} style={{...S.btn("secondary"),fontSize:11}}>📥 PNG</button>
+        </div>
+        <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap",justifyContent:"center"}}>
+          {LINE_TYPES.map(lt=>(
+            <div key={lt.id} style={{display:"flex",alignItems:"center",gap:4}}>
+              <svg width={22} height={8}><line x1={0} y1={4} x2={22} y2={4} stroke={lt.color} strokeWidth={2.5} strokeDasharray={lt.dash.join(",")}/></svg>
+              <span style={{fontSize:10,color:BRAND.textSecondary}}>{lt.label}</span>
+            </div>
+          ))}
+          {showDefenders&&<div style={{display:"flex",alignItems:"center",gap:4}}>
+            <svg width={14} height={14}><line x1={2} y1={2} x2={12} y2={12} stroke="#f87171" strokeWidth={2.5}/><line x1={12} y1={2} x2={2} y2={12} stroke="#f87171" strokeWidth={2.5}/></svg>
+            <span style={{fontSize:10,color:BRAND.textSecondary}}>Defender</span>
+          </div>}
+        </div>
+      </div>
+      <div style={{flex:1,minWidth:200}}>
+        <div style={{fontWeight:700,fontSize:20,marginBottom:6}}>{play.name}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+          <span style={S.pill(BRAND.gold)}>{play.category}</span>
+          {(play.tags||[]).map(t=><span key={t} style={S.pill("#60a5fa")}>{t}</span>)}
+        </div>
+        {play.notes&&(
+          <div style={{...S.card,fontSize:13,color:BRAND.textSecondary,lineHeight:1.7}}>
+            <div style={{fontWeight:600,color:BRAND.textPrimary,marginBottom:4}}>📋 Notes</div>
+            {play.notes}
+          </div>
+        )}
+        <div style={{...S.card,fontSize:12,color:BRAND.textSecondary}}>
+          <div style={{fontWeight:600,color:BRAND.textPrimary,marginBottom:8}}>Play summary</div>
+          <div>{lines.length} action{lines.length!==1?"s":""} drawn</div>
+          {showDefenders&&<div style={{color:"#f87171",marginTop:4}}>✕ Defense included</div>}
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={onBack} style={S.btn("secondary")}>← Playbook</button>
+          {isAdmin&&<button onClick={onEdit} style={S.btn("gold")}>✏️ Edit</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PLAYBOOK LIST ──
 export default function Playbook({ isAdmin }) {
   const [plays, setPlays] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("list"); // list | create | viewer
   const [activePlay, setActivePlay] = useState(null);
   const [filterCat, setFilterCat] = useState("All");
+  const [filterTag, setFilterTag] = useState("");
+  const [search, setSearch] = useState("");
 
-  useEffect(()=>{ loadPlays(); },[]);
+  useEffect(()=>{ load(); },[]);
 
-  const loadPlays = async () => {
+  const load = async () => {
     setLoading(true);
     const { data } = await supabase.from("plays").select("*").order("created_at",{ascending:false});
     if (data) setPlays(data);
     setLoading(false);
   };
 
-  const filtered = plays.filter(p=>filterCat==="All"||p.category===filterCat);
+  const allTags = [...new Set(plays.flatMap(p=>p.tags||[]))];
   const catCounts = Object.fromEntries(PLAY_CATEGORIES.map(c=>[c,plays.filter(p=>p.category===c).length]));
 
-  const openNew = () => { setActivePlay(null); setView("editor"); };
-  const openEdit = (p) => { setActivePlay(p); setView("editor"); };
-  const openView = (p) => { setActivePlay(p); setView("viewer"); };
-  const deletePlay = async (id) => {
+  const filtered = plays.filter(p=>{
+    if (filterCat!=="All"&&p.category!==filterCat) return false;
+    if (filterTag&&!(p.tags||[]).includes(filterTag)) return false;
+    if (search) { const q=search.toLowerCase(); if (!p.name?.toLowerCase().includes(q)&&!(p.tags||[]).some(t=>t.toLowerCase().includes(q))) return false; }
+    return true;
+  });
+
+  const duplicate = async (p) => {
+    await supabase.from("plays").insert([{name:`${p.name} (copy)`,category:p.category,tags:p.tags||[],notes:p.notes,players_data:p.players_data,defenders_data:p.defenders_data||[],lines_data:p.lines_data,frames:[]}]);
+    load();
+  };
+  const del = async (id) => {
     if (!window.confirm("Delete this play?")) return;
     await supabase.from("plays").delete().eq("id",id);
-    loadPlays();
+    load();
   };
 
-  if (view==="editor") return (
+  if (view==="create") return (
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:18}}>{activePlay?"Edit Play":"New Play"}</h1>
-      <PlayEditor play={activePlay} onSave={()=>{setView("list");loadPlays();}} onCancel={()=>setView("list")} readOnly={false}/>
+      <PlayCreator play={activePlay} onSave={()=>{setView("list");load();}} onCancel={()=>setView("list")}/>
     </div>
   );
 
   if (view==="viewer") return (
     <div>
-      <div style={{display:"flex",gap:12,marginBottom:18,alignItems:"center"}}>
-        <h1 style={{fontSize:20,fontWeight:700,margin:0}}>📖 {activePlay?.name}</h1>
-        {isAdmin&&<button onClick={()=>openEdit(activePlay)} style={S.btn("gold")}>✏️ Edit</button>}
-      </div>
-      <PlayEditor play={activePlay} onSave={()=>{setView("list");loadPlays();}} onCancel={()=>setView("list")} readOnly={true}/>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:18}}>📖 {activePlay?.name}</h1>
+      <PlayViewer play={activePlay} isAdmin={isAdmin}
+        onBack={()=>setView("list")}
+        onEdit={()=>setView("create")}/>
     </div>
   );
 
   return (
     <div>
+      {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
         <div>
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>📖 Playbook</h1>
-          <p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>{plays.length} plays · Saved to database</p>
+          <p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>{plays.length} plays</p>
         </div>
-        {isAdmin&&<button onClick={openNew} style={S.btn("gold")}>+ New Play</button>}
+        {isAdmin&&<button onClick={()=>{setActivePlay(null);setView("create");}} style={S.btn("gold")}>+ New Play</button>}
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+
+      {/* Search */}
+      <input value={search} onChange={e=>setSearch(e.target.value)}
+        placeholder="🔍 Search plays…" style={{...S.input,maxWidth:340,marginBottom:12}}/>
+
+      {/* Category pills */}
+      <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
         <button onClick={()=>setFilterCat("All")} style={{...S.btn(filterCat==="All"?"primary":"secondary"),fontSize:11}}>All ({plays.length})</button>
         {PLAY_CATEGORIES.filter(c=>catCounts[c]>0||isAdmin).map(c=>(
           <button key={c} onClick={()=>setFilterCat(c)} style={{...S.btn(filterCat===c?"primary":"secondary"),fontSize:11}}>{c} {catCounts[c]>0&&`(${catCounts[c]})`}</button>
         ))}
       </div>
-      {loading?(
-        <div style={{textAlign:"center",padding:40,color:BRAND.textSecondary}}>Loading plays…</div>
-      ):filtered.length===0?(
-        <div style={{...S.card,textAlign:"center",padding:"40px 20px"}}>
-          <div style={{fontSize:40,marginBottom:10}}>📋</div>
-          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>No plays yet</div>
-          <div style={{fontSize:13,color:BRAND.textSecondary}}>{isAdmin?"Click '+ New Play' to draw your first play.":"No plays added by the coach yet."}</div>
+
+      {/* Tag filter */}
+      {allTags.length>0&&(
+        <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,color:BRAND.textSecondary}}>Tag:</span>
+          {["", ...allTags].map(t=>(
+            <button key={t||"all"} onClick={()=>setFilterTag(t)}
+              style={{padding:"2px 9px",borderRadius:8,fontSize:11,cursor:"pointer",border:"none",
+                background:filterTag===t?(t?`${BRAND.gold}33`:BRAND.gold):BRAND.charcoal,
+                color:filterTag===t?(t?BRAND.gold:BRAND.black):BRAND.textSecondary,
+                outline:filterTag===t&&t?`1px solid ${BRAND.gold}`:`1px solid ${BRAND.border}`}}>
+              {t||"All"}
+            </button>
+          ))}
         </div>
-      ):(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+      )}
+
+      {/* Plays grid */}
+      {loading ? (
+        <div style={{textAlign:"center",padding:40,color:BRAND.textSecondary}}>Loading plays…</div>
+      ) : filtered.length===0 ? (
+        <div style={{...S.card,textAlign:"center",padding:"40px 20px"}}>
+          <div style={{fontSize:36,marginBottom:10}}>📋</div>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>No plays yet</div>
+          <div style={{fontSize:13,color:BRAND.textSecondary}}>{isAdmin?"Click '+ New Play' to draw your first play.":"No plays from the coach yet."}</div>
+        </div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:16}}>
           {filtered.map(p=>(
-            <div key={p.id} style={{...S.card,marginBottom:0}}>
-              <div style={{marginBottom:12,borderRadius:8,overflow:"hidden",cursor:"pointer",border:`1px solid ${BRAND.border}`}} onClick={()=>openView(p)}>
-                <svg width="100%" viewBox="0 0 380 200" style={{display:"block"}}>
-                  <Court width={380} height={380}/>
+            <div key={p.id} style={{...S.card,marginBottom:0,cursor:"pointer"}} onClick={()=>{setActivePlay(p);setView("viewer");}}>
+              {/* Mini court preview */}
+              <div style={{borderRadius:8,overflow:"hidden",marginBottom:10,border:`1px solid ${BRAND.border}`}}>
+                <svg width="100%" viewBox="0 0 370 200" style={{display:"block"}}>
+                  <Court width={370} height={370}/>
                   {(p.lines_data||[]).map((ln,i)=>(
-                    <line key={i} x1={ln.x1*380} y1={ln.y1*200} x2={ln.x2*380} y2={ln.y2*200} stroke={ln.color} strokeWidth={2} strokeDasharray={ln.dash?.join(",")||""} opacity={0.8}/>
+                    <line key={i} x1={ln.x1*370} y1={ln.y1*200} x2={ln.x2*370} y2={ln.y2*200}
+                      stroke={ln.color} strokeWidth={2} strokeDasharray={ln.dash?.join(",")||""} opacity={0.85}/>
                   ))}
                   {(p.players_data||DEFAULT_PLAYERS).map(pl=>(
                     <g key={pl.id}>
-                      <circle cx={pl.x*380} cy={pl.y*200} r={11} fill={pl.color} stroke="#fff" strokeWidth={1.5}/>
-                      <text x={pl.x*380} y={pl.y*200+4} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700}>{pl.label}</text>
+                      <circle cx={pl.x*370} cy={pl.y*200} r={11} fill={pl.color} stroke="#fff" strokeWidth={1.5}/>
+                      <text x={pl.x*370} y={pl.y*200+4} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700}>{pl.label}</text>
+                    </g>
+                  ))}
+                  {(p.defenders_data||[]).map(d=>(
+                    <g key={d.id}>
+                      <line x1={d.x*370-8} y1={d.y*200-8} x2={d.x*370+8} y2={d.y*200+8} stroke="#f87171" strokeWidth={2.5}/>
+                      <line x1={d.x*370+8} y1={d.y*200-8} x2={d.x*370-8} y2={d.y*200+8} stroke="#f87171" strokeWidth={2.5}/>
                     </g>
                   ))}
                 </svg>
               </div>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:10}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{p.name}</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <span style={S.pill(BRAND.gold)}>{p.category}</span>
-                    {p.lines_data?.length>0&&<span style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{p.lines_data.length} drawn</span>}
-                    {p.frames?.length>0&&<span style={{fontSize:11,color:"#60a5fa",marginTop:2}}>📋 {p.frames.length} frames</span>}
-                  </div>
-                  {p.notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:6,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{p.notes}</div>}
-                </div>
+              {/* Info */}
+              <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{p.name}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                <span style={S.pill(BRAND.gold)}>{p.category}</span>
+                {(p.tags||[]).slice(0,3).map(t=><span key={t} style={S.pill("#60a5fa")}>{t}</span>)}
+                {(p.tags||[]).length>3&&<span style={{fontSize:11,color:BRAND.textSecondary}}>+{(p.tags||[]).length-3}</span>}
               </div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>openView(p)} style={{...S.btn("green"),flex:1,justifyContent:"center"}}>▶ View & Animate</button>
+              {p.notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{p.notes}</div>}
+              <div style={{display:"flex",gap:7}} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>{setActivePlay(p);setView("viewer");}} style={{...S.btn("green"),flex:1,justifyContent:"center",fontSize:11}}>▶ View</button>
                 {isAdmin&&<>
-                  <button onClick={()=>openEdit(p)} style={{...S.btn("secondary"),padding:"7px 12px"}}>✏️</button>
-                  <button onClick={()=>deletePlay(p.id)} style={{...S.btn("danger"),padding:"7px 12px"}}>🗑️</button>
+                  <button onClick={()=>{setActivePlay(p);setView("create");}} style={{...S.btn("secondary"),padding:"7px 11px"}} title="Edit">✏️</button>
+                  <button onClick={()=>duplicate(p)} style={{...S.btn("secondary"),padding:"7px 11px"}} title="Duplicate">📋</button>
+                  <button onClick={()=>del(p.id)} style={{...S.btn("danger"),padding:"7px 11px"}} title="Delete">🗑️</button>
                 </>}
               </div>
             </div>
