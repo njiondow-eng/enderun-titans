@@ -1065,7 +1065,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         {players.length>0&&(()=>{
           if(!hasStats) return(
             <div style={{gridColumn:"1/-1",...S.card,textAlign:"center",padding:"18px",color:BRAND.textSecondary,fontSize:13}}>
-              📊 Les leaders s'afficheront ici après la saisie des stats de match
+              📊 Leaders will appear here once game stats have been entered
             </div>
           );
           const byPts=[...players].sort((a,b)=>getStat(b,"pts")-getStat(a,"pts"));
