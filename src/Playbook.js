@@ -81,8 +81,14 @@ function parsePlayText(text) {
   const actionStart = text.indexOf("The Action");
   const scoringStart = text.indexOf("Scoring");
   if (actionStart > -1) {
-    const end = scoringStart > -1 ? scoringStart : text.length;
-    notes = text.slice(actionStart, end).replace(/The Action\s*:?\s*/i,"").replace(/^\d+\.\s*/gm,"").replace(/\t/g," ").split("\n").map(l=>l.trim()).filter(Boolean).join(" | ");
+    const end = text.length;
+    const rawNotes = text.slice(actionStart, end)
+      .replace(/The Action\s*:?\s*/i,"")
+      .replace(/Scoring.*?Options\s*:?\s*/i,"💡 Options: ")
+      .replace(/^\d+\.\s*/gm,"")
+      .replace(/\t/g," ")
+      .split("\n").map(l=>l.trim()).filter(Boolean).join("\n");
+    notes = rawNotes.slice(0, 600);
   }
 
   // Parse player positions from ASCII court diagram
@@ -155,9 +161,13 @@ function parsePlayText(text) {
   const stepsSection = text.slice(text.indexOf("The Action") > -1 ? text.indexOf("The Action") : 0,
     text.indexOf("Scoring") > -1 ? text.indexOf("Scoring") : text.length);
 
-  const stepRe = /\d+\.\s*(.+)/g;
+  // Match numbered steps AND bullet points with player references
+  const stepRe = /(?:\d+\.\s*|[•\-]\s*)(.+)/g;
   let sm; const steps = [];
-  while ((sm = stepRe.exec(stepsSection)) !== null) steps.push(sm[1]);
+  while ((sm = stepRe.exec(stepsSection)) !== null) {
+    const line = sm[1].trim();
+    if (/\(\d\)/.test(line)) steps.push(line); // only lines that reference a player
+  }
 
   steps.forEach((step, i) => {
     const sLow = step.toLowerCase();
@@ -740,8 +750,10 @@ export default function Playbook({ isAdmin }) {
     return true;
   });
 
-  const handleImport = async (parsed) => {
-    const data = {
+  const handleImport = (parsed) => {
+    // Open PlayCreator pre-filled with parsed data so coach can draw actions
+    setActivePlay({
+      _imported: true,
       name: parsed.name || "Imported Play",
       category: parsed.category,
       tags: parsed.tags,
@@ -749,11 +761,9 @@ export default function Playbook({ isAdmin }) {
       players_data: parsed.players,
       defenders_data: [],
       lines_data: parsed.lines,
-      frames: [],
-    };
-    await supabase.from("plays").insert([data]);
+    });
     setShowImport(false);
-    load();
+    setView("create");
   };
 
   const duplicate = async (p) => {
