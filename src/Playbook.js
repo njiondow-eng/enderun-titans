@@ -46,6 +46,288 @@ const PLAY_CATEGORIES = ["Offense","Defense","Set Plays","Out of Bounds","Transi
 
 const QUICK_TAGS = ["Half-court","Full-court","Late game","vs Zone","vs Man","BLOB","SLOB","Pick & Roll","Post up","Fast Break","Horns","Press Break"];
 
+// ── PLAY TEXT PARSER ──
+function parsePlayText(text) {
+  // Extract name from first heading line
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  let name = "";
+  let category = "Set Plays";
+  let notes = "";
+  let tags = [];
+
+  // Find title (first non-emoji meaningful line)
+  for (const l of lines) {
+    const clean = l.replace(/^[#*\d.)\-•\s🏀📋]+/, "").trim();
+    if (clean.length > 3 && clean.length < 80 && !clean.startsWith("Initial") && !clean.startsWith("The Action")) {
+      name = clean.replace(/\(.*?\)/g,"").trim();
+      break;
+    }
+  }
+
+  // Detect category + tags from content
+  const lower = text.toLowerCase();
+  if (lower.includes("pick-and-roll") || lower.includes("ball-screen") || lower.includes("horns") || lower.includes("spain")) {
+    tags.push("Pick & Roll"); category = "Set Plays";
+  }
+  if (lower.includes("half-court")) tags.push("Half-court");
+  if (lower.includes("full-court") || lower.includes("fast break") || lower.includes("transition")) { tags.push("Full-court"); category = "Transition"; }
+  if (lower.includes("press break")) { tags.push("Press Break"); category = "Press Break"; }
+  if (lower.includes("zone")) tags.push("vs Zone");
+  if (lower.includes("blob") || lower.includes("out of bound")) { category = "Out of Bounds"; tags.push("BLOB"); }
+  if (lower.includes("horns")) tags.push("Horns");
+  tags = [...new Set(tags)];
+
+  // Build notes from action text
+  const actionStart = text.indexOf("The Action");
+  const scoringStart = text.indexOf("Scoring");
+  if (actionStart > -1) {
+    const end = scoringStart > -1 ? scoringStart : text.length;
+    notes = text.slice(actionStart, end).replace(/The Action\s*:?\s*/i,"").replace(/^\d+\.\s*/gm,"").replace(/\t/g," ").split("\n").map(l=>l.trim()).filter(Boolean).join(" | ");
+  }
+
+  // Parse player positions from ASCII court diagram
+  // Look for lines with (1)-(5) or [2]-[4] style
+  const playerPositions = {};
+  const posMap = {
+    // y-zone buckets (court height 0→1, basket at top ~0.03, half-court 0.5)
+    // We scan diagram lines for player tokens and map relative position
+  };
+
+  // Find diagram section
+  const diagramLines = [];
+  let inDiagram = false;
+  for (const l of lines) {
+    if (/[⟂\[\(]/.test(l) && /\d/.test(l)) inDiagram = true;
+    if (inDiagram) {
+      if (/[⟂\[\(]/.test(l) || /^\s+/.test(l)) diagramLines.push(l);
+      else if (diagramLines.length > 0) inDiagram = false;
+    }
+  }
+
+  // Parse player tokens from diagram
+  // (1)=PG, (2)=SG, (3)=SF, (4)=PF, (5)=C
+  // [2],[3],[4] = perimeter spot
+  const PLAYER_META = [
+    {id:1,label:"PG",color:"#ef4444"},
+    {id:2,label:"SG",color:"#3b82f6"},
+    {id:3,label:"SF",color:"#22c55e"},
+    {id:4,label:"PF",color:"#f59e0b"},
+    {id:5,label:"C", color:"#a855f7"},
+  ];
+
+  // Default fallback positions (spread pick-and-roll spacing)
+  const defaultPos = {
+    1:{x:0.5, y:0.82},   // PG top of key
+    2:{x:0.12,y:0.62},   // SG left corner
+    3:{x:0.88,y:0.62},   // SF right corner
+    4:{x:0.25,y:0.52},   // PF left wing
+    5:{x:0.5, y:0.58},   // C high post
+  };
+
+  // Try to read positions from diagram
+  if (diagramLines.length > 0) {
+    const totalDiagLines = diagramLines.length;
+    diagramLines.forEach((dline, rowIdx) => {
+      const y = 0.45 + (rowIdx / totalDiagLines) * 0.45; // map to bottom half of court
+      // find all player tokens
+      const tokenRe = /[\[(](\d)[\])]/g;
+      let m;
+      while ((m = tokenRe.exec(dline)) !== null) {
+        const pid = parseInt(m[1]);
+        // x pos proportional to character position
+        const x = Math.max(0.08, Math.min(0.92, m.index / Math.max(dline.length, 1)));
+        defaultPos[pid] = {x, y};
+      }
+    });
+  }
+
+  const players = PLAYER_META.map(pm => ({
+    ...pm,
+    x: defaultPos[pm.id]?.x ?? 0.5,
+    y: defaultPos[pm.id]?.y ?? 0.7,
+  }));
+
+  // Build lines from "The Action" steps
+  // Step 1: (5) sets screen on (1)'s defender → line from 5→1 of type "screen"
+  // Step 2: (1) drives → line from 1 toward paint
+  // Step 3: (5) rolls → line from 5 toward rim
+  const actionLines = [];
+  const stepsSection = text.slice(text.indexOf("The Action") > -1 ? text.indexOf("The Action") : 0,
+    text.indexOf("Scoring") > -1 ? text.indexOf("Scoring") : text.length);
+
+  const stepRe = /\d+\.\s*(.+)/g;
+  let sm; const steps = [];
+  while ((sm = stepRe.exec(stepsSection)) !== null) steps.push(sm[1]);
+
+  steps.forEach((step, i) => {
+    const sLow = step.toLowerCase();
+    // Detect who moves and where
+    const fromMatch = step.match(/\((\d)\)/);
+    const toMatch = step.match(/\((\d)\)[^(]*(?:sets|screen|pass|roll|drive|cut|flare|pop)/i)
+      || step.match(/to\s+\((\d)\)/i);
+
+    if (!fromMatch) return;
+    const fromId = parseInt(fromMatch[1]);
+    const fp = players.find(p=>p.id===fromId);
+    if (!fp) return;
+
+    // Determine action type
+    let type = "pass", color = "#facc15", dash = [], arrow = true;
+    if (sLow.includes("screen") || sLow.includes("sets")) { type="screen"; color="#fb923c"; dash=[]; arrow=false; }
+    else if (sLow.includes("roll") || sLow.includes("drive") || sLow.includes("drives")) { type="dribble"; color="#60a5fa"; dash=[4,4]; arrow=true; }
+    else if (sLow.includes("cut") || sLow.includes("sprint") || sLow.includes("flare") || sLow.includes("back-screen")) { type="cut"; color="#4ade80"; dash=[8,4]; arrow=true; }
+    else if (sLow.includes("pass") || sLow.includes("pass")) { type="pass"; color="#facc15"; }
+
+    // Destination: find explicit (x) reference or use direction keywords
+    let x2 = fp.x, y2 = fp.y;
+    const destMatch = step.match(/(?:to|toward|into|down to)\s*\((\d)\)/i) || step.match(/to\s*\((\d)\)/i);
+    if (destMatch) {
+      const tp = players.find(p=>p.id===parseInt(destMatch[1]));
+      if (tp) { x2 = tp.x; y2 = tp.y; }
+    } else if (sLow.includes("rim") || sLow.includes("basket") || sLow.includes("paint") || sLow.includes("roll")) {
+      x2 = 0.5; y2 = 0.12;
+    } else if (sLow.includes("corner")) {
+      x2 = fromId===2 ? 0.08 : 0.92; y2 = 0.72;
+    } else if (sLow.includes("wing") || sLow.includes("pop") || sLow.includes("flare") || sLow.includes("top")) {
+      x2 = fromId <= 2 ? 0.2 : 0.8; y2 = 0.6;
+    } else if (sLow.includes("downhill") || sLow.includes("toward the middle")) {
+      x2 = 0.5; y2 = fp.y - 0.25;
+    } else {
+      x2 = fp.x; y2 = Math.max(0.1, fp.y - 0.15);
+    }
+
+    actionLines.push({
+      id: Date.now() + i,
+      type, color, dash, arrow,
+      fromId,
+      x1: fp.x, y1: fp.y,
+      x2: Math.max(0.05, Math.min(0.95, x2)),
+      y2: Math.max(0.05, Math.min(0.95, y2)),
+      toId: destMatch ? parseInt(destMatch[1]) : null,
+    });
+  });
+
+  return { name, category, tags, notes, players, lines: actionLines };
+}
+
+// ── IMPORT MODAL ──
+function ImportPlayModal({ onImport, onClose }) {
+  const [text, setText] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [step, setStep] = useState("paste"); // paste | preview
+
+  const handleParse = () => {
+    if (!text.trim()) return;
+    const parsed = parsePlayText(text);
+    setPreview(parsed);
+    setStep("preview");
+  };
+
+  const svgRef = useRef(null);
+  const W=300, H=400;
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#1A1A1A",border:`1px solid #2A2A2A`,borderRadius:16,padding:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700}}>📥 Import Play from Text</h2>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#9A8A70",fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+
+        {step === "paste" && (
+          <>
+            <p style={{color:"#9A8A70",fontSize:13,marginBottom:12}}>
+              Paste a play description — formations, actions, and diagrams are parsed automatically into an interactive play.
+            </p>
+            <textarea
+              value={text}
+              onChange={e=>setText(e.target.value)}
+              style={{width:"100%",height:240,background:"#0D0D0D",border:"1px solid #2A2A2A",borderRadius:8,
+                color:"#F0E6D0",fontSize:12,padding:12,fontFamily:"monospace",resize:"vertical",boxSizing:"border-box",outline:"none"}}
+              placeholder={"Paste play text here…\n\nExample:\n1. The Spread Pick-and-Roll\n(5) sets screen at the top of the key.\n(1) drives downhill toward the paint.\n(5) rolls to the rim."}
+            />
+            <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"flex-end"}}>
+              <button onClick={onClose} style={{padding:"8px 16px",borderRadius:8,cursor:"pointer",fontSize:13,background:"#1E1E1E",color:"#9A8A70",border:"1px solid #2A2A2A"}}>Cancel</button>
+              <button onClick={handleParse} disabled={!text.trim()} style={{padding:"8px 20px",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,background:"#D4A017",color:"#0D0D0D",border:"none",opacity:text.trim()?1:0.5}}>
+                🔍 Parse Play →
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "preview" && preview && (
+          <>
+            <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-start"}}>
+              <div>
+                <svg ref={svgRef} width={W} height={H} style={{display:"block",borderRadius:8,border:"1px solid #2A2A2A"}}>
+                  <Court width={W} height={H}/>
+                  {preview.lines.map((ln,i)=>{
+                    const x1=ln.x1*W,y1=ln.y1*H,x2=ln.x2*W,y2=ln.y2*H;
+                    const angle=Math.atan2(y2-y1,x2-x1),len=8;
+                    const a1=angle-Math.PI/6,a2=angle+Math.PI/6;
+                    return (
+                      <g key={i}>
+                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={ln.color} strokeWidth={2} strokeDasharray={ln.dash.join(",")} opacity={0.9}/>
+                        {ln.arrow&&<polygon points={`${x2},${y2} ${x2-len*Math.cos(a1)},${y2-len*Math.sin(a1)} ${x2-len*Math.cos(a2)},${y2-len*Math.sin(a2)}`} fill={ln.color}/>}
+                      </g>
+                    );
+                  })}
+                  {preview.players.map(p=>(
+                    <g key={p.id}>
+                      <circle cx={p.x*W} cy={p.y*H} r={14} fill={p.color} stroke="#fff" strokeWidth={2}/>
+                      <text x={p.x*W} y={p.y*H+5} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={700}>{p.label}</text>
+                    </g>
+                  ))}
+                </svg>
+              </div>
+              <div style={{flex:1,minWidth:180}}>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#9A8A70",display:"block",marginBottom:4}}>Play Name</label>
+                  <input value={preview.name} onChange={e=>setPreview(p=>({...p,name:e.target.value}))}
+                    style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderRadius:6,padding:"7px 10px",color:"#F0E6D0",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#9A8A70",display:"block",marginBottom:4}}>Category</label>
+                  <select value={preview.category} onChange={e=>setPreview(p=>({...p,category:e.target.value}))}
+                    style={{background:"#0D0D0D",border:"1px solid #2A2A2A",borderRadius:6,padding:"7px 10px",color:"#F0E6D0",fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"}}>
+                    {PLAY_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#9A8A70",display:"block",marginBottom:4}}>Tags détectés</label>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {preview.tags.map(t=>(
+                      <span key={t} style={{padding:"2px 8px",borderRadius:8,fontSize:11,background:"#D4A01733",color:"#D4A017",border:"1px solid #D4A01766"}}>{t}</span>
+                    ))}
+                    {preview.tags.length===0&&<span style={{fontSize:12,color:"#9A8A70"}}>Aucun</span>}
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={{fontSize:11,color:"#9A8A70",display:"block",marginBottom:4}}>Actions détectées</label>
+                  <span style={{fontSize:13,fontWeight:700,color:"#F0E6D0"}}>{preview.lines.length}</span>
+                  <span style={{fontSize:11,color:"#9A8A70"}}> lignes / mouvements</span>
+                </div>
+                {preview.notes&&(
+                  <div style={{fontSize:11,color:"#9A8A70",lineHeight:1.6,maxHeight:80,overflowY:"auto",
+                    background:"#0D0D0D",borderRadius:6,padding:8}}>
+                    {preview.notes.slice(0,200)}{preview.notes.length>200?"…":""}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
+              <button onClick={()=>setStep("paste")} style={{padding:"8px 14px",borderRadius:8,cursor:"pointer",fontSize:12,background:"#1E1E1E",color:"#9A8A70",border:"1px solid #2A2A2A"}}>← Modifier le texte</button>
+              <button onClick={()=>onImport(preview)} style={{padding:"8px 20px",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700,background:"#9B1C1C",color:"#F0E6D0",border:"none"}}>
+                ✅ Importer ce play
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Court({ width, height }) {
   const sx = w => w * width, sy = h => h * height;
   const stroke = "#2a5c2a"; const lw = 1.5;
@@ -437,6 +719,7 @@ export default function Playbook({ isAdmin }) {
   const [filterCat, setFilterCat] = useState("All");
   const [filterTag, setFilterTag] = useState("");
   const [search, setSearch] = useState("");
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(()=>{ load(); },[]);
 
@@ -456,6 +739,22 @@ export default function Playbook({ isAdmin }) {
     if (search) { const q=search.toLowerCase(); if (!p.name?.toLowerCase().includes(q)&&!(p.tags||[]).some(t=>t.toLowerCase().includes(q))) return false; }
     return true;
   });
+
+  const handleImport = async (parsed) => {
+    const data = {
+      name: parsed.name || "Imported Play",
+      category: parsed.category,
+      tags: parsed.tags,
+      notes: parsed.notes,
+      players_data: parsed.players,
+      defenders_data: [],
+      lines_data: parsed.lines,
+      frames: [],
+    };
+    await supabase.from("plays").insert([data]);
+    setShowImport(false);
+    load();
+  };
 
   const duplicate = async (p) => {
     await supabase.from("plays").insert([{name:`${p.name} (copy)`,category:p.category,tags:p.tags||[],notes:p.notes,players_data:p.players_data,defenders_data:p.defenders_data||[],lines_data:p.lines_data,frames:[]}]);
@@ -491,8 +790,16 @@ export default function Playbook({ isAdmin }) {
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>📖 Playbook</h1>
           <p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>{plays.length} plays</p>
         </div>
-        {isAdmin&&<button onClick={()=>{setActivePlay(null);setView("create");}} style={S.btn("gold")}>+ New Play</button>}
+        {isAdmin&&(
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowImport(true)} style={S.btn("secondary")}>📥 Import</button>
+            <button onClick={()=>{setActivePlay(null);setView("create");}} style={S.btn("gold")}>+ New Play</button>
+          </div>
+        )}
       </div>
+
+      {/* Import Modal */}
+      {showImport && <ImportPlayModal onImport={handleImport} onClose={()=>setShowImport(false)}/>}
 
       {/* Search */}
       <input value={search} onChange={e=>setSearch(e.target.value)}
