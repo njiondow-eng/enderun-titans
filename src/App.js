@@ -53,8 +53,9 @@ const PLAYER_NAV = [
   { id:"myattendance", label:"My Attendance", icon:"✅" },
   { id:"myhealth", label:"My Health", icon:"🏥" },
   { id:"schedule", label:"Schedule", icon:"📅" },
-  { id:"playbook", label:"Playbook", icon:"📖" },
+  { id:"practices", label:"Practices", icon:"🏀" },
   { id:"announcements", label:"Announcements", icon:"📢" },
+  { id:"playbook", label:"Playbook", icon:"📖" },
 ];
 
 const S = {
@@ -1294,12 +1295,12 @@ function MyProfile({player,loadPlayers}){
           <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,padding:"12px 16px",background:BRAND.charcoal,borderRadius:10}}>
             <Avatar initials={p.photo||"??"} size={60} color={BRAND.gold} photoUrl={photoPreview||p.photo_url||null}/>
             <div>
-              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PROFILE PHOTO</div>
               <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
-                📷 {uploadingPhoto?"Uploading…":"Changer ma photo"}
+                📷 {uploadingPhoto?"Uploading…":"Change Photo"}
                 <input type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoChange}/>
               </label>
-              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée — sera sauvegardée avec vos infos</div>}
+              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo selected — will be saved with your info</div>}
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
@@ -1537,6 +1538,46 @@ function PlayerSchedule(){
   );
 }
 
+function PlayerPractices(){
+  const [items,setItems]=useState([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{
+    supabase.from("practices").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setItems(data); setLoading(false); });
+  },[]);
+  const typeColors={Game:"#f59e0b",Practice:"#60a5fa",Film:"#a78bfa",Conditioning:"#4ade80",Scrimmage:"#f87171"};
+  return(
+    <div>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Practices</h1>
+      {loading?<Spinner/>:items.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No practices scheduled yet.</div>:(
+        <div style={{display:"grid",gap:12}}>
+          {items.map((p,i)=>{
+            const d=new Date(p.date+"T00:00");
+            const isPast=d<new Date();
+            return(
+              <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:16,opacity:isPast?0.65:1}}>
+                <div style={{width:48,textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{d.toLocaleString("en",{month:"short"})}</div>
+                  <div style={{fontSize:24,fontWeight:800,color:typeColors[p.type]||BRAND.textPrimary,lineHeight:1}}>{d.getDate()}</div>
+                </div>
+                <div style={{width:1,height:44,background:typeColors[p.type]||BRAND.border}}/>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:700,background:`${typeColors[p.type]||BRAND.border}33`,color:typeColors[p.type]||BRAND.textSecondary}}>{p.type||"Practice"}</span>
+                    <span style={{fontSize:12,color:BRAND.textSecondary}}>{p.time}</span>
+                  </div>
+                  <div style={{fontWeight:700,fontSize:15}}>{p.title||p.type||"Practice"}</div>
+                  <div style={{fontSize:12,color:BRAND.textSecondary}}>{p.location} {p.notes&&`· ${p.notes}`}</div>
+                </div>
+                {isPast&&<span style={{fontSize:11,color:BRAND.textSecondary,flexShrink:0}}>Completed</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlayerAnnouncements(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1749,8 +1790,9 @@ export default function App(){
     myattendance:<MyAttendance player={freshPlayer||{}}/>,
     myhealth:<MyHealth player={freshPlayer||{}}/>,
     schedule:<PlayerSchedule/>,
-    playbook:<Playbook isAdmin={false}/>,
+    practices:<PlayerPractices/>,
     announcements:<PlayerAnnouncements/>,
+    playbook:<Playbook isAdmin={false}/>,
   };
 
   const nav=isAdmin(role)?ADMIN_NAV:PLAYER_NAV;
