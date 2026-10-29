@@ -1063,6 +1063,11 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       {/* Team Stats Row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
         {players.length>0&&(()=>{
+          if(!hasStats) return(
+            <div style={{gridColumn:"1/-1",...S.card,textAlign:"center",padding:"18px",color:BRAND.textSecondary,fontSize:13}}>
+              📊 Les leaders s'afficheront ici après la saisie des stats de match
+            </div>
+          );
           const byPts=[...players].sort((a,b)=>getStat(b,"pts")-getStat(a,"pts"));
           const byReb=[...players].sort((a,b)=>getStat(b,"reb")-getStat(a,"reb"));
           const byAst=[...players].sort((a,b)=>getStat(b,"ast")-getStat(a,"ast"));
@@ -1073,15 +1078,15 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
             {l:"Rebounding Leader",v:getStat(byReb[0],"reb"),name:shortName(byReb[0]),unit:"RPG"},
             {l:"Assists Leader",v:getStat(byAst[0],"ast"),name:shortName(byAst[0]),unit:"APG"},
             {l:"FG% Leader",v:`${getStat(byFg[0],"fg")}%`,name:shortName(byFg[0]),unit:"FG%"},
-          ];
-        })().map(({l,v,name,unit})=>(
-          <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
-            <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
-            <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
-            <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{unit}</div>
-            <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary,marginTop:6,borderTop:`1px solid ${BRAND.border}`,paddingTop:6}}>{name}</div>
-          </div>
-        ))}
+          ].map(({l,v,name,unit})=>(
+            <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
+              <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
+              <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
+              <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{unit}</div>
+              <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary,marginTop:6,borderTop:`1px solid ${BRAND.border}`,paddingTop:6}}>{name}</div>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Main Dashboard Cards Grid */}
