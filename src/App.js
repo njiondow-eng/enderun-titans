@@ -376,14 +376,63 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
 
 function Statistics({players}){
   const [sort,setSort]=useState("pts");
-  const sorted=[...players].sort((a,b)=>b[sort]-a[sort]);
+  const [statsMap,setStatsMap]=useState({}); // keyed by player_id
+  const [loading,setLoading]=useState(true);
   const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"plus_minus",l:"+/-"}];
+
+  useEffect(()=>{ loadStats(); },[]);
+
+  const loadStats=async()=>{
+    setLoading(true);
+    const{data}=await supabase.from("game_stats").select("*");
+    if(data&&data.length>0){
+      // Group by player_id and compute averages
+      const grouped={};
+      data.forEach(row=>{
+        if(!grouped[row.player_id]) grouped[row.player_id]=[];
+        grouped[row.player_id].push(row);
+      });
+      const avg={};
+      Object.entries(grouped).forEach(([pid,rows])=>{
+        const n=rows.length;
+        const sum=(f)=>rows.reduce((s,r)=>s+(r[f]||0),0);
+        const fgm=sum("fgm"),fga=sum("fga"),tpm=sum("tpm"),tpa=sum("tpa"),ftm=sum("ftm"),fta=sum("fta");
+        avg[pid]={
+          gp:n,
+          pts:+(sum("pts")/n).toFixed(1),
+          reb:+(sum("reb")/n).toFixed(1),
+          ast:+(sum("ast")/n).toFixed(1),
+          stl:+(sum("stl")/n).toFixed(1),
+          blk:+(sum("blk")/n).toFixed(1),
+          to_:+(sum("to_")/n).toFixed(1),
+          plus_minus:+(sum("plus_minus")/n).toFixed(1),
+          fg:fga>0?+((fgm/fga)*100).toFixed(1):0,
+          threept:tpa>0?+((tpm/tpa)*100).toFixed(1):0,
+          ft:fta>0?+((ftm/fta)*100).toFixed(1):0,
+        };
+      });
+      setStatsMap(avg);
+    }
+    setLoading(false);
+  };
+
+  const getVal=(p,k)=>{
+    const s=statsMap[p.id];
+    if(s&&s[k]!==undefined) return s[k];
+    // fallback to player profile fields
+    return p[k]??0;
+  };
+
+  const sorted=[...players].sort((a,b)=>getVal(b,sort)-getVal(a,sort));
+
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Statistics</h1>
+      <p style={{color:BRAND.textSecondary,fontSize:12,marginBottom:12}}>Averages calculated from match-by-match game stats</p>
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
         {cols.map(c=><button key={c.k} onClick={()=>setSort(c.k)} style={{...S.btn(sort===c.k?"primary":"secondary"),padding:"5px 13px",fontSize:12}}>{c.l}</button>)}
       </div>
+      {loading?<Spinner/>:(
       <div style={S.card}>
         <div style={{overflowX:"auto"}}>
           <table style={S.table}>
@@ -391,13 +440,15 @@ function Statistics({players}){
               <th style={S.th}>Player</th><th style={S.th}>Pos</th><th style={S.th}>GP</th>
               {cols.map(c=><th key={c.k} style={{...S.th,color:sort===c.k?BRAND.gold:BRAND.textSecondary}}>{c.l}</th>)}
             </tr></thead>
-            <tbody>{sorted.map(p=>(
+            <tbody>{sorted.map(p=>{
+              const gp=statsMap[p.id]?.gp??p.gp??0;
+              return(
               <tr key={p.id}>
                 <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/><span style={{fontWeight:600}}>{p.name}</span></div></td>
                 <td style={{...S.td,color:BRAND.textSecondary}}>{p.pos}</td>
-                <td style={S.td}>{p.gp}</td>
+                <td style={S.td}>{gp}</td>
                 {cols.map(c=>{
-                  const val=p[c.k]??0;
+                  const val=getVal(p,c.k);
                   const isPM=c.k==="plus_minus";
                   const pmColor=isPM?(val>0?"#4ade80":val<0?"#f87171":BRAND.textSecondary):null;
                   return(
@@ -407,10 +458,11 @@ function Statistics({players}){
                   );
                 })}
               </tr>
-            ))}</tbody>
+            )})}</tbody>
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -572,27 +624,32 @@ function Practice(){
 function League(){
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
+  const [players,setPlayers]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showLeagueForm,setShowLeagueForm]=useState(false);
   const [showGameForm,setShowGameForm]=useState(false);
+  const [showStatsForm,setShowStatsForm]=useState(null); // game object
   const [editingGame,setEditingGame]=useState(null);
   const [activeLeague,setActiveLeague]=useState(null);
   const [expandedLeague,setExpandedLeague]=useState(null);
   const [leagueName,setLeagueName]=useState("");
   const [saving,setSaving]=useState(false);
+  const [savingStats,setSavingStats]=useState(false);
+  const [statsRows,setStatsRows]=useState([]); // [{player_id, pts, reb, ast, stl, blk, to_, plus_minus, fgm, fga, tpm, tpa, ftm, fta, minutes}]
   const [form,setForm]=useState({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",league_name:"",us:"",them:""});
 
   useEffect(()=>{ load(); },[]);
 
   const load=async()=>{
     setLoading(true);
-    // Load leagues from dedicated table
-    const{data:leagueRows}=await supabase.from("leagues").select("name").order("created_at",{ascending:true});
-    // Load games
-    const{data:gamesData}=await supabase.from("games").select("*").order("date",{ascending:true});
+    const[{data:leagueRows},{data:gamesData},{data:playersData}]=await Promise.all([
+      supabase.from("leagues").select("name").order("created_at",{ascending:true}),
+      supabase.from("games").select("*").order("date",{ascending:true}),
+      supabase.from("players").select("id,name,number,position").order("name",{ascending:true})
+    ]);
     if(gamesData) setGames(gamesData);
+    if(playersData) setPlayers(playersData);
     if(leagueRows){
-      // Merge leagues from table + any extra league names found in games (safety net)
       const fromTable=leagueRows.map(r=>r.name);
       const fromGames=gamesData?[...new Set(gamesData.map(g=>g.type||"General"))]:[];
       const merged=[...new Set([...fromTable,...fromGames])];
@@ -600,6 +657,30 @@ function League(){
       if(merged.length>0&&!expandedLeague) setExpandedLeague(merged[0]);
     }
     setLoading(false);
+  };
+
+  const openStatsForm=async(game)=>{
+    // Pre-load existing stats for this game
+    const{data:existing}=await supabase.from("game_stats").select("*").eq("game_id",game.id);
+    const rows=players.map(p=>{
+      const ex=existing?.find(e=>e.player_id===p.id)||{};
+      return{player_id:p.id,player_name:p.name,number:p.number,pts:ex.pts??0,reb:ex.reb??0,ast:ex.ast??0,stl:ex.stl??0,blk:ex.blk??0,to_:ex.to_??0,plus_minus:ex.plus_minus??0,fgm:ex.fgm??0,fga:ex.fga??0,tpm:ex.tpm??0,tpa:ex.tpa??0,ftm:ex.ftm??0,fta:ex.fta??0,minutes:ex.minutes??0};
+    });
+    setStatsRows(rows);
+    setShowStatsForm(game);
+  };
+
+  const updateStat=(player_id,field,value)=>{
+    setStatsRows(prev=>prev.map(r=>r.player_id===player_id?{...r,[field]:value===""?"":parseInt(value)||0}:r));
+  };
+
+  const saveStats=async()=>{
+    if(!showStatsForm) return;
+    setSavingStats(true);
+    const upserts=statsRows.map(r=>({game_id:showStatsForm.id,player_id:r.player_id,pts:r.pts||0,reb:r.reb||0,ast:r.ast||0,stl:r.stl||0,blk:r.blk||0,to_:r.to_||0,plus_minus:r.plus_minus||0,fgm:r.fgm||0,fga:r.fga||0,tpm:r.tpm||0,tpa:r.tpa||0,ftm:r.ftm||0,fta:r.fta||0,minutes:r.minutes||0}));
+    await supabase.from("game_stats").upsert(upserts,{onConflict:"game_id,player_id"});
+    setSavingStats(false);
+    setShowStatsForm(null);
   };
 
   const addLeague=async()=>{
@@ -713,6 +794,7 @@ function League(){
                                 ):(
                                   <span style={{fontSize:12,color:BRAND.textSecondary,padding:"4px 10px",background:`${BRAND.border}55`,borderRadius:6}}>Upcoming</span>
                                 )}
+                                {hasScore&&<button onClick={()=>openStatsForm(g)} style={{...S.btn("gold"),padding:"5px 10px",fontSize:11}}>📊 Stats</button>}
                                 <button onClick={()=>{setActiveLeague(league);setForm({...g,us:g.us??"",them:g.them??""});setEditingGame(g.id);setShowGameForm(true);}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>✏️</button>
                                 <button onClick={()=>delGame(g.id)} style={{...S.btn("danger"),padding:"5px 10px",fontSize:11}}>🗑️</button>
                               </div>
@@ -739,6 +821,47 @@ function League(){
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={()=>setShowLeagueForm(false)} style={S.btn("secondary")}>Cancel</button>
             <button onClick={addLeague} style={S.btn("gold")}>Add League</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Stats Entry Modal */}
+      {showStatsForm&&(
+        <Modal title={`📊 Stats — vs ${showStatsForm.opp} (${showStatsForm.date})`} onClose={()=>setShowStatsForm(null)}>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{color:BRAND.textSecondary}}>
+                  <th style={{textAlign:"left",padding:"6px 4px",position:"sticky",left:0,background:BRAND.surface,minWidth:120}}>Player</th>
+                  {["MIN","PTS","REB","AST","STL","BLK","TO","+/-","FGM","FGA","3PM","3PA","FTM","FTA"].map(h=>(
+                    <th key={h} style={{padding:"6px 4px",minWidth:48,textAlign:"center"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {statsRows.map(r=>(
+                  <tr key={r.player_id} style={{borderTop:`1px solid ${BRAND.border}`}}>
+                    <td style={{padding:"4px",position:"sticky",left:0,background:BRAND.surface,fontWeight:600,whiteSpace:"nowrap"}}>
+                      <span style={{color:BRAND.textSecondary,fontSize:10,marginRight:4}}>#{r.number}</span>{r.player_name}
+                    </td>
+                    {[["minutes","MIN"],["pts","PTS"],["reb","REB"],["ast","AST"],["stl","STL"],["blk","BLK"],["to_","TO"],["plus_minus","+/-"],["fgm","FGM"],["fga","FGA"],["tpm","3PM"],["tpa","3PA"],["ftm","FTM"],["fta","FTA"]].map(([field])=>(
+                      <td key={field} style={{padding:"2px"}}>
+                        <input
+                          type="number"
+                          value={r[field]??0}
+                          onChange={e=>updateStat(r.player_id,field,e.target.value)}
+                          style={{width:44,background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:4,color:BRAND.textPrimary,textAlign:"center",padding:"4px 2px",fontSize:12}}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+            <button onClick={()=>setShowStatsForm(null)} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={saveStats} disabled={savingStats} style={S.btn("gold")}>{savingStats?"Saving…":"Save Stats"}</button>
           </div>
         </Modal>
       )}
