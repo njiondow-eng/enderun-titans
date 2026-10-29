@@ -77,6 +77,23 @@ const S = {
   pill:(t)=>{ const m={Active:"#134a2e",Injured:"#4a1313",Suspended:"#2a2a00",Recovering:"#2a1f00",Monitoring:"#1a2a40",Cleared:"#134a2e"}; const c={Active:"#4ade80",Injured:"#f87171",Suspended:"#facc15",Recovering:"#fb923c",Monitoring:"#60a5fa",Cleared:"#4ade80"}; return { display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:600, background:m[t]||"#222", color:c[t]||"#aaa" }; },
 };
 
+// ── NOTIFICATIONS ──
+const EDGE_FN_URL="https://grtcebiusqczxloegpzs.supabase.co/functions/v1/send-notification";
+
+async function sendNotification(type, data){
+  try{
+    // Get all player emails from DB
+    const{data:players}=await supabase.from("players").select("name,email").not("email","is",null).neq("email","");
+    const recipients=(players||[]).filter(p=>p.email).map(p=>({name:p.name,email:p.email}));
+    if(recipients.length===0) return;
+    await fetch(EDGE_FN_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({type,data,recipients})
+    });
+  }catch(e){ console.warn("Notification error:",e); }
+}
+
 const TitansLogo=({size=48})=>(
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
     <polygon points="50,10 90,35 85,80 50,95 15,80 10,35" fill={BRAND.crimson} opacity="0.15"/>
@@ -524,7 +541,7 @@ function Practice(){
     if(!form.date) return; setSaving(true);
     const d={date:form.date,time:form.time,type:form.type,location:form.location,objectives:form.objectives,notes:form.notes};
     if(editing) await supabase.from("practices").update(d).eq("id",editing);
-    else await supabase.from("practices").insert([d]);
+    else{ await supabase.from("practices").insert([d]); sendNotification("practice",d); }
     setSaving(false); setShowForm(false); setEditing(null); load();
   };
 
@@ -669,7 +686,7 @@ function League(){
     if(!form.opp||!form.date) return; setSaving(true);
     const d={date:form.date,time:form.time,opp:form.opp,venue:form.venue,home_away:form.home_away,type:activeLeague||expandedLeague||"General",us:form.us!==""?parseInt(form.us):null,them:form.them!==""?parseInt(form.them):null};
     if(editingGame) await supabase.from("games").update(d).eq("id",editingGame);
-    else await supabase.from("games").insert([d]);
+    else{ await supabase.from("games").insert([d]); sendNotification("game",d); }
     setSaving(false); setShowGameForm(false); setEditingGame(null); load();
   };
 
@@ -962,7 +979,9 @@ function Announcements(){
       const{error:upErr}=await supabase.storage.from("announcement-images").upload(path,imgFile,{upsert:true});
       if(!upErr){ const{data:pub}=supabase.storage.from("announcement-images").getPublicUrl(path); image_url=pub.publicUrl; }
     }
-    await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0],image_url}]);
+    const annData={...form,date:new Date().toISOString().split("T")[0],image_url};
+    await supabase.from("announcements").insert([annData]);
+    sendNotification("announcement",annData);
     setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); setImgFile(null); setImgPreview(null); load();
   };
 
