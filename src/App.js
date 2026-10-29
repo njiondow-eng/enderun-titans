@@ -991,7 +991,7 @@ function Announcements(){
   );
 }
 
-function AdminDashboard({players,loading,setPage}){
+function AdminDashboard({players,loading,setPage,statsMap={}}){
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
   const [practices,setPractices]=useState([]);
@@ -1008,10 +1008,13 @@ function AdminDashboard({players,loading,setPage}){
     supabase.from("attendance").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>{ if(data)setAttendance(data); });
   },[]);
 
-  const avgPts=players.length?(players.reduce((a,p)=>a+p.pts,0)/players.length).toFixed(1):0;
-  const avgReb=players.length?(players.reduce((a,p)=>a+p.reb,0)/players.length).toFixed(1):0;
-  const avgAst=players.length?(players.reduce((a,p)=>a+p.ast,0)/players.length).toFixed(1):0;
-  const avgFg=players.length?(players.reduce((a,p)=>a+p.fg,0)/players.length).toFixed(1):0;
+  // Use game_stats averages if available, else 0
+  const getStat=(p,k)=>(statsMap[p.id]?.[k]??0);
+  const hasStats=Object.keys(statsMap).length>0;
+  const avgPts=players.length?(players.reduce((a,p)=>a+getStat(p,"pts"),0)/players.length).toFixed(1):0;
+  const avgReb=players.length?(players.reduce((a,p)=>a+getStat(p,"reb"),0)/players.length).toFixed(1):0;
+  const avgAst=players.length?(players.reduce((a,p)=>a+getStat(p,"ast"),0)/players.length).toFixed(1):0;
+  const avgFg=players.length?(players.reduce((a,p)=>a+getStat(p,"fg"),0)/players.length).toFixed(1):0;
   const played=games.filter(g=>g.us!==null&&g.them!==null);
   const wins=played.filter(g=>g.us>g.them).length;
   const upcoming=games.filter(g=>g.us===null||g.them===null);
@@ -1059,12 +1062,19 @@ function AdminDashboard({players,loading,setPage}){
 
       {/* Team Stats Row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-        {players.length>0&&[
-          {l:"Scoring Leader",v:[...players].sort((a,b)=>b.pts-a.pts)[0]?.pts,name:[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"PPG"},
-          {l:"Rebounding Leader",v:[...players].sort((a,b)=>b.reb-a.reb)[0]?.reb,name:[...players].sort((a,b)=>b.reb-a.reb)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"RPG"},
-          {l:"Assists Leader",v:[...players].sort((a,b)=>b.ast-a.ast)[0]?.ast,name:[...players].sort((a,b)=>b.ast-a.ast)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"APG"},
-          {l:"FG% Leader",v:`${[...players].sort((a,b)=>b.fg-a.fg)[0]?.fg}%`,name:[...players].sort((a,b)=>b.fg-a.fg)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"FG%"},
-        ].map(({l,v,name,unit})=>(
+        {players.length>0&&(()=>{
+          const byPts=[...players].sort((a,b)=>getStat(b,"pts")-getStat(a,"pts"));
+          const byReb=[...players].sort((a,b)=>getStat(b,"reb")-getStat(a,"reb"));
+          const byAst=[...players].sort((a,b)=>getStat(b,"ast")-getStat(a,"ast"));
+          const byFg=[...players].sort((a,b)=>getStat(b,"fg")-getStat(a,"fg"));
+          const shortName=p=>p?.name?.split(" ").slice(0,2).join(" ")||"—";
+          return[
+            {l:"Scoring Leader",v:getStat(byPts[0],"pts"),name:shortName(byPts[0]),unit:"PPG"},
+            {l:"Rebounding Leader",v:getStat(byReb[0],"reb"),name:shortName(byReb[0]),unit:"RPG"},
+            {l:"Assists Leader",v:getStat(byAst[0],"ast"),name:shortName(byAst[0]),unit:"APG"},
+            {l:"FG% Leader",v:`${getStat(byFg[0],"fg")}%`,name:shortName(byFg[0]),unit:"FG%"},
+          ];
+        })().map(({l,v,name,unit})=>(
           <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
             <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
             <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
@@ -1716,7 +1726,7 @@ export default function App(){
   const freshPlayer=currentPlayer&&players.length>0?players.find(p=>p.id===currentPlayer.id)||currentPlayer:currentPlayer;
 
   const adminPages={
-    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
+    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage} statsMap={globalStatsMap}/>,
     roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading} statsMap={globalStatsMap}/>,
     stats:<Statistics players={players} statsMap={globalStatsMap}/>,
     attendance:<AdminAttendance players={players}/>,
