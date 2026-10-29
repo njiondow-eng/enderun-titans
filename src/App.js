@@ -1136,7 +1136,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Roster Card */}
-        <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>setPage("roster")}>
+        <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>navigate("roster")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {players.slice(0,4).map(p=>(
               <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1152,7 +1152,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* League Card */}
-        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>setPage("league")}>
+        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>navigate("league")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {leagues.length>0?(
               leagues.map(league=>{
@@ -1179,7 +1179,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Practice Card */}
-        <QuickCard icon="🏋️" title="Practice" value={practices.length} sub="sessions scheduled" color="#a78bfa" onClick={()=>setPage("practice")}>
+        <QuickCard icon="🏋️" title="Practice" value={practices.length} sub="sessions scheduled" color="#a78bfa" onClick={()=>navigate("practice")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {practices.slice(0,3).map(p=>(
               <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
@@ -1198,7 +1198,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Attendance Card */}
-        <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>setPage("attendance")}>
+        <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>navigate("attendance")}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
             {["Present","Late","Excused","Absent"].map(s=>{
               const count=todayAtt.filter(a=>a.status===s).length;
@@ -1215,7 +1215,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Health Card */}
-        <QuickCard icon="🏥" title="Health Report" value={activeHealth} sub={`active reports · ${health.filter(h=>h.status==="Recovering").length} recovering`} color="#fb923c" onClick={()=>setPage("health")}>
+        <QuickCard icon="🏥" title="Health Report" value={activeHealth} sub={`active reports · ${health.filter(h=>h.status==="Recovering").length} recovering`} color="#fb923c" onClick={()=>navigate("health")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {health.filter(h=>h.status!=="Cleared").slice(0,3).map(h=>(
               <div key={h.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
@@ -1231,7 +1231,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Stats Card */}
-        <QuickCard icon="📊" title="Statistics" value={`#1`} sub={`${players.length>0?[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "):"—"} leads scoring`} color="#60a5fa" onClick={()=>setPage("stats")}>
+        <QuickCard icon="📊" title="Statistics" value={`#1`} sub={`${players.length>0?[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "):"—"} leads scoring`} color="#60a5fa" onClick={()=>navigate("stats")}>
           {loading?<div style={{fontSize:12,color:BRAND.textSecondary}}>Loading…</div>:(
             <ResponsiveContainer width="100%" height={90}>
               <BarChart data={[...players].sort((a,b)=>b.pts-a.pts).slice(0,5).map(p=>({name:p.name.split(" ").pop(),pts:p.pts}))}>
@@ -1250,7 +1250,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
 
         {/* Announcements Card */}
-        <QuickCard icon="📢" title="Announcements" value={announcements.length} sub="recent posts" color="#fbbf24" onClick={()=>setPage("announcements")}>
+        <QuickCard icon="📢" title="Announcements" value={announcements.length} sub="recent posts" color="#fbbf24" onClick={()=>navigate("announcements")}>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {announcements.slice(0,3).map(a=>{
               const tc={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
@@ -1269,10 +1269,10 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Playbook Card */}
-        <QuickCard icon="📖" title="Playbook" value="→" sub="View & animate plays" color={BRAND.gold} onClick={()=>setPage("playbook")}>
+        <QuickCard icon="📖" title="Playbook" value="→" sub="View & animate plays" color={BRAND.gold} onClick={()=>navigate("playbook")}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
             {["Offense","Defense","Set Plays","Transition"].map(cat=>(
-              <div key={cat} onClick={e=>{e.stopPropagation();setPage("playbook");}} style={{flex:1,minWidth:80,textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"8px 4px",cursor:"pointer"}}>
+              <div key={cat} onClick={e=>{e.stopPropagation();navigate("playbook");}} style={{flex:1,minWidth:80,textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"8px 4px",cursor:"pointer"}}>
                 <div style={{fontSize:11,fontWeight:600,color:BRAND.crimsonLight}}>{cat}</div>
               </div>
             ))}
@@ -1707,7 +1707,7 @@ export default function App(){
   const [loggedIn,setLoggedIn]=useState(false);
   const [role,setRole]=useState(null);
   const [currentPlayer,setCurrentPlayer]=useState(null);
-  const [page,setPage]=useState("dashboard");
+  const [page,setPage]=useState(()=>{ try{ return localStorage.getItem("titans_page")||"dashboard"; }catch(e){ return "dashboard"; } });
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
@@ -1770,7 +1770,13 @@ export default function App(){
           playerData=pl;
         }
         setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
-        setPage(isAdmin(r)?"dashboard":"myprofile");
+        // Only set default page if none is saved, or saved page doesn't match role nav
+        const savedPage=localStorage.getItem("titans_page");
+        const adminNav=ADMIN_NAV.map(n=>n.id);
+        const playerNav=PLAYER_NAV.map(n=>n.id);
+        const validPages=isAdmin(r)?adminNav:playerNav;
+        const defaultPage=isAdmin(r)?"dashboard":"myprofile";
+        setPage(savedPage&&validPages.includes(savedPage)?savedPage:defaultPage);
         return true;
       }catch(e){ return false; }
     };
@@ -1798,8 +1804,9 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
-  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
+  const navigate=(p)=>{ try{ localStorage.setItem("titans_page",p); }catch(e){} setPage(p); };
+  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); const dp=isAdmin(r)?"dashboard":"myprofile"; try{ localStorage.setItem("titans_page",dp); }catch(e){} setPage(dp); };
+  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); try{ localStorage.removeItem("titans_page"); }catch(e){} setPage("dashboard"); };
 
   if(authLoading) return(
     <div style={{background:"#0D0D0D",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1863,7 +1870,7 @@ export default function App(){
             {isAdmin(role)?"Admin Panel":"Player Portal"}
           </div>
           {nav.map(item=>(
-            <div key={item.id} onClick={()=>setPage(item.id)} style={S.navItem(page===item.id)}>
+            <div key={item.id} onClick={()=>navigate(item.id)} style={S.navItem(page===item.id)}>
               <span style={{fontSize:15}}>{item.icon}</span>
               <span>{item.label}</span>
             </div>
