@@ -940,6 +940,8 @@ function Announcements(){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({title:"",body:"",type:"Practice"});
+  const [imgFile,setImgFile]=useState(null);
+  const [imgPreview,setImgPreview]=useState(null);
   const [saving,setSaving]=useState(false);
   const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
   const colors={Practice:"#1e3a5f",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
@@ -947,10 +949,21 @@ function Announcements(){
   useEffect(()=>{ load(); },[]);
   const load=async()=>{ setLoading(true); const{data}=await supabase.from("announcements").select("*").order("created_at",{ascending:false}); if(data)setItems(data); setLoading(false); };
 
+  const handleImg=(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    setImgFile(f); setImgPreview(URL.createObjectURL(f));
+  };
+
   const save=async()=>{
     if(!form.title) return; setSaving(true);
-    await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0]}]);
-    setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); load();
+    let image_url=null;
+    if(imgFile){
+      const path=`announcements/${Date.now()}_${imgFile.name.replace(/\s+/g,"_")}`;
+      const{error:upErr}=await supabase.storage.from("announcement-images").upload(path,imgFile,{upsert:true});
+      if(!upErr){ const{data:pub}=supabase.storage.from("announcement-images").getPublicUrl(path); image_url=pub.publicUrl; }
+    }
+    await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0],image_url}]);
+    setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); setImgFile(null); setImgPreview(null); load();
   };
 
   const del=async(id)=>{ await supabase.from("announcements").delete().eq("id",id); load(); };
@@ -971,19 +984,29 @@ function Announcements(){
                 <button onClick={()=>del(a.id)} style={{...S.btn("danger"),padding:"2px 10px",fontSize:11,marginLeft:"auto"}}>Remove</button>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
+              {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6,marginBottom:a.image_url?10:0}}>{a.body}</div>}
+              {a.image_url&&<img src={a.image_url} alt={a.title} style={{width:"100%",maxHeight:400,objectFit:"contain",borderRadius:8,marginTop:4,background:"#111"}}/>}
             </div>
           ))}
           {items.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements yet.</div>}
         </div>
       )}
       {showForm&&(
-        <Modal title="New Announcement" onClose={()=>setShowForm(false)}>
+        <Modal title="New Announcement" onClose={()=>{setShowForm(false);setImgFile(null);setImgPreview(null);}}>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Title *</label><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={S.input}/></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Message</label><textarea value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}}/></div>
+          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Message <span style={{color:BRAND.textSecondary,fontWeight:400}}>(optional)</span></label><textarea value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}} placeholder="Leave blank if the image is the announcement"/></div>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={S.input}>{["Practice","Academic","Social","Schedule","General"].map(t=><option key={t}>{t}</option>)}</select></div>
+          <div style={{marginBottom:11}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>Image <span style={{color:BRAND.textSecondary,fontWeight:400}}>(optional)</span></label>
+            {imgPreview&&<img src={imgPreview} alt="preview" style={{width:"100%",maxHeight:200,objectFit:"contain",borderRadius:8,marginBottom:8,background:"#111"}}/>}
+            <label style={{...S.btn("secondary"),padding:"7px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
+              🖼️ {imgFile?imgFile.name:"Choose Image"}
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
+            </label>
+            {imgFile&&<button onClick={()=>{setImgFile(null);setImgPreview(null);}} style={{...S.btn("danger"),padding:"7px 12px",fontSize:12,marginLeft:8}}>✕ Remove</button>}
+          </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={()=>{setShowForm(false);setImgFile(null);setImgPreview(null);}} style={S.btn("secondary")}>Cancel</button>
             <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Posting…":"Post"}</button>
           </div>
         </Modal>
@@ -1596,7 +1619,8 @@ function PlayerAnnouncements(){
                 <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date}</span>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
+              {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6,marginBottom:a.image_url?10:0}}>{a.body}</div>}
+              {a.image_url&&<img src={a.image_url} alt={a.title} style={{width:"100%",maxHeight:420,objectFit:"contain",borderRadius:8,marginTop:4,background:"#111"}}/>}
             </div>
           ))}
         </div>
