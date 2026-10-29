@@ -124,7 +124,7 @@ const Spinner=()=>(
   </div>
 );
 
-const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
+const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
 
 // ── ROSTER ──
 function Roster({players,loadPlayers,loading}){
@@ -293,6 +293,7 @@ function Roster({players,loadPlayers,loading}){
             <FormField form={form} setForm={setForm} label="STL" field="stl" type="number"/>
             <FormField form={form} setForm={setForm} label="BLK" field="blk" type="number"/>
             <FormField form={form} setForm={setForm} label="TO" field="to_" type="number"/>
+            <FormField form={form} setForm={setForm} label="+/-" field="plus_minus" type="number"/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
             <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
@@ -376,7 +377,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
 function Statistics({players}){
   const [sort,setSort]=useState("pts");
   const sorted=[...players].sort((a,b)=>b[sort]-a[sort]);
-  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"}];
+  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"plus_minus",l:"+/-"}];
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Statistics</h1>
@@ -395,11 +396,16 @@ function Statistics({players}){
                 <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/><span style={{fontWeight:600}}>{p.name}</span></div></td>
                 <td style={{...S.td,color:BRAND.textSecondary}}>{p.pos}</td>
                 <td style={S.td}>{p.gp}</td>
-                {cols.map(c=>(
-                  <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:sort===c.k?BRAND.gold:BRAND.textPrimary}}>
-                    {c.k==="fg"||c.k==="threept"||c.k==="ft"?`${p[c.k]}%`:p[c.k]}
-                  </td>
-                ))}
+                {cols.map(c=>{
+                  const val=p[c.k]??0;
+                  const isPM=c.k==="plus_minus";
+                  const pmColor=isPM?(val>0?"#4ade80":val<0?"#f87171":BRAND.textSecondary):null;
+                  return(
+                    <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:isPM?pmColor:(sort===c.k?BRAND.gold:BRAND.textPrimary)}}>
+                      {isPM?(val>0?`+${val}`:val):(c.k==="fg"||c.k==="threept"||c.k==="ft"?`${val}%`:val)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}</tbody>
           </table>
