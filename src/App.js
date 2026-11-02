@@ -53,9 +53,8 @@ const PLAYER_NAV = [
   { id:"myattendance", label:"My Attendance", icon:"✅" },
   { id:"myhealth", label:"My Health", icon:"🏥" },
   { id:"schedule", label:"Schedule", icon:"📅" },
-  { id:"practices", label:"Practices", icon:"🏀" },
-  { id:"announcements", label:"Announcements", icon:"📢" },
   { id:"playbook", label:"Playbook", icon:"📖" },
+  { id:"announcements", label:"Announcements", icon:"📢" },
 ];
 
 const S = {
@@ -76,23 +75,6 @@ const S = {
   td:{ padding:"11px 12px", fontSize:13, borderBottom:`1px solid ${BRAND.border}22`, color:BRAND.textPrimary },
   pill:(t)=>{ const m={Active:"#134a2e",Injured:"#4a1313",Suspended:"#2a2a00",Recovering:"#2a1f00",Monitoring:"#1a2a40",Cleared:"#134a2e"}; const c={Active:"#4ade80",Injured:"#f87171",Suspended:"#facc15",Recovering:"#fb923c",Monitoring:"#60a5fa",Cleared:"#4ade80"}; return { display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:600, background:m[t]||"#222", color:c[t]||"#aaa" }; },
 };
-
-// ── NOTIFICATIONS ──
-const EDGE_FN_URL="https://grtcebiusqczxloegpzs.supabase.co/functions/v1/send-notification";
-
-async function sendNotification(type, data){
-  try{
-    // Get all player emails from DB
-    const{data:players}=await supabase.from("players").select("name,email").not("email","is",null).neq("email","");
-    const recipients=(players||[]).filter(p=>p.email).map(p=>({name:p.name,email:p.email}));
-    if(recipients.length===0) return;
-    await fetch(EDGE_FN_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({type,data,recipients})
-    });
-  }catch(e){ console.warn("Notification error:",e); }
-}
 
 const TitansLogo=({size=48})=>(
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
@@ -142,10 +124,10 @@ const Spinner=()=>(
   </div>
 );
 
-const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
+const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
 
 // ── ROSTER ──
-function Roster({players,loadPlayers,loading,statsMap={}}){
+function Roster({players,loadPlayers,loading}){
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [showForm,setShowForm]=useState(false);
@@ -247,16 +229,12 @@ function Roster({players,loadPlayers,loading,statsMap={}}){
                 <span style={S.pill(p.status)}>{p.status}</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:10}}>
-                {[["PTS","pts"],["REB","reb"],["AST","ast"]].map(([l,k])=>{
-                  const s=statsMap[p.id];
-                  const v=s?s[k]:0;
-                  const hasData=!!s;
-                  return(
+                {[["PTS",p.pts],["REB",p.reb],["AST",p.ast]].map(([l,v])=>(
                   <div key={l} style={{textAlign:"center",background:BRAND.charcoal,borderRadius:6,padding:"6px 4px"}}>
-                    <div style={{fontSize:15,fontWeight:700,color:hasData?BRAND.gold:BRAND.textSecondary}}>{v}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:BRAND.gold}}>{v}</div>
                     <div style={{fontSize:10,color:BRAND.textSecondary}}>{l}</div>
                   </div>
-                )})}
+                ))}
               </div>
               <div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>openEdit(p)} style={{...S.btn("secondary"),flex:1,padding:"6px",fontSize:12}}>✏️ Edit</button>
@@ -315,7 +293,6 @@ function Roster({players,loadPlayers,loading,statsMap={}}){
             <FormField form={form} setForm={setForm} label="STL" field="stl" type="number"/>
             <FormField form={form} setForm={setForm} label="BLK" field="blk" type="number"/>
             <FormField form={form} setForm={setForm} label="TO" field="to_" type="number"/>
-            <FormField form={form} setForm={setForm} label="+/-" field="plus_minus" type="number"/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
             <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
@@ -396,22 +373,13 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
   );
 }
 
-function Statistics({players,statsMap={}}){
+function Statistics({players}){
   const [sort,setSort]=useState("pts");
-  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"plus_minus",l:"+/-"}];
-
-  const getVal=(p,k)=>{
-    const s=statsMap[p.id];
-    if(s&&s[k]!==undefined) return s[k];
-    return 0; // show 0 until real game stats are entered
-  };
-
-  const sorted=[...players].sort((a,b)=>getVal(b,sort)-getVal(a,sort));
-
+  const sorted=[...players].sort((a,b)=>b[sort]-a[sort]);
+  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"}];
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Statistics</h1>
-      <p style={{color:BRAND.textSecondary,fontSize:12,marginBottom:12}}>Averages calculated from match-by-match game stats</p>
       <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
         {cols.map(c=><button key={c.k} onClick={()=>setSort(c.k)} style={{...S.btn(sort===c.k?"primary":"secondary"),padding:"5px 13px",fontSize:12}}>{c.l}</button>)}
       </div>
@@ -422,25 +390,18 @@ function Statistics({players,statsMap={}}){
               <th style={S.th}>Player</th><th style={S.th}>Pos</th><th style={S.th}>GP</th>
               {cols.map(c=><th key={c.k} style={{...S.th,color:sort===c.k?BRAND.gold:BRAND.textSecondary}}>{c.l}</th>)}
             </tr></thead>
-            <tbody>{sorted.map(p=>{
-              const gp=statsMap[p.id]?.gp??0;
-              return(
+            <tbody>{sorted.map(p=>(
               <tr key={p.id}>
                 <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/><span style={{fontWeight:600}}>{p.name}</span></div></td>
                 <td style={{...S.td,color:BRAND.textSecondary}}>{p.pos}</td>
-                <td style={S.td}>{gp}</td>
-                {cols.map(c=>{
-                  const val=getVal(p,c.k);
-                  const isPM=c.k==="plus_minus";
-                  const pmColor=isPM?(val>0?"#4ade80":val<0?"#f87171":BRAND.textSecondary):null;
-                  return(
-                    <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:isPM?pmColor:(sort===c.k?BRAND.gold:BRAND.textPrimary)}}>
-                      {isPM?(val>0?`+${val}`:val):(c.k==="fg"||c.k==="threept"||c.k==="ft"?`${val}%`:val)}
-                    </td>
-                  );
-                })}
+                <td style={S.td}>{p.gp}</td>
+                {cols.map(c=>(
+                  <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:sort===c.k?BRAND.gold:BRAND.textPrimary}}>
+                    {c.k==="fg"||c.k==="threept"||c.k==="ft"?`${p[c.k]}%`:p[c.k]}
+                  </td>
+                ))}
               </tr>
-            )})}</tbody>
+            ))}</tbody>
           </table>
         </div>
       </div>
@@ -541,7 +502,7 @@ function Practice(){
     if(!form.date) return; setSaving(true);
     const d={date:form.date,time:form.time,type:form.type,location:form.location,objectives:form.objectives,notes:form.notes};
     if(editing) await supabase.from("practices").update(d).eq("id",editing);
-    else{ await supabase.from("practices").insert([d]); sendNotification("practice",d); }
+    else await supabase.from("practices").insert([d]);
     setSaving(false); setShowForm(false); setEditing(null); load();
   };
 
@@ -605,32 +566,27 @@ function Practice(){
 function League(){
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
-  const [players,setPlayers]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showLeagueForm,setShowLeagueForm]=useState(false);
   const [showGameForm,setShowGameForm]=useState(false);
-  const [showStatsForm,setShowStatsForm]=useState(null); // game object
   const [editingGame,setEditingGame]=useState(null);
   const [activeLeague,setActiveLeague]=useState(null);
   const [expandedLeague,setExpandedLeague]=useState(null);
   const [leagueName,setLeagueName]=useState("");
   const [saving,setSaving]=useState(false);
-  const [savingStats,setSavingStats]=useState(false);
-  const [statsRows,setStatsRows]=useState([]); // [{player_id, pts, reb, ast, stl, blk, to_, plus_minus, fgm, fga, tpm, tpa, ftm, fta, minutes}]
   const [form,setForm]=useState({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",league_name:"",us:"",them:""});
 
   useEffect(()=>{ load(); },[]);
 
   const load=async()=>{
     setLoading(true);
-    const[{data:leagueRows},{data:gamesData},{data:playersData}]=await Promise.all([
-      supabase.from("leagues").select("name").order("created_at",{ascending:true}),
-      supabase.from("games").select("*").order("date",{ascending:true}),
-      supabase.from("players").select("id,name,number,position").order("name",{ascending:true})
-    ]);
+    // Load leagues from dedicated table
+    const{data:leagueRows}=await supabase.from("leagues").select("name").order("created_at",{ascending:true});
+    // Load games
+    const{data:gamesData}=await supabase.from("games").select("*").order("date",{ascending:true});
     if(gamesData) setGames(gamesData);
-    if(playersData) setPlayers(playersData);
     if(leagueRows){
+      // Merge leagues from table + any extra league names found in games (safety net)
       const fromTable=leagueRows.map(r=>r.name);
       const fromGames=gamesData?[...new Set(gamesData.map(g=>g.type||"General"))]:[];
       const merged=[...new Set([...fromTable,...fromGames])];
@@ -638,30 +594,6 @@ function League(){
       if(merged.length>0&&!expandedLeague) setExpandedLeague(merged[0]);
     }
     setLoading(false);
-  };
-
-  const openStatsForm=async(game)=>{
-    // Pre-load existing stats for this game
-    const{data:existing}=await supabase.from("game_stats").select("*").eq("game_id",game.id);
-    const rows=players.map(p=>{
-      const ex=existing?.find(e=>e.player_id===p.id)||{};
-      return{player_id:p.id,player_name:p.name,number:p.number,pts:ex.pts??0,reb:ex.reb??0,ast:ex.ast??0,stl:ex.stl??0,blk:ex.blk??0,to_:ex.to_??0,plus_minus:ex.plus_minus??0,fgm:ex.fgm??0,fga:ex.fga??0,tpm:ex.tpm??0,tpa:ex.tpa??0,ftm:ex.ftm??0,fta:ex.fta??0,minutes:ex.minutes??0};
-    });
-    setStatsRows(rows);
-    setShowStatsForm(game);
-  };
-
-  const updateStat=(player_id,field,value)=>{
-    setStatsRows(prev=>prev.map(r=>r.player_id===player_id?{...r,[field]:value===""?"":parseInt(value)||0}:r));
-  };
-
-  const saveStats=async()=>{
-    if(!showStatsForm) return;
-    setSavingStats(true);
-    const upserts=statsRows.map(r=>({game_id:showStatsForm.id,player_id:r.player_id,pts:r.pts||0,reb:r.reb||0,ast:r.ast||0,stl:r.stl||0,blk:r.blk||0,to_:r.to_||0,plus_minus:r.plus_minus||0,fgm:r.fgm||0,fga:r.fga||0,tpm:r.tpm||0,tpa:r.tpa||0,ftm:r.ftm||0,fta:r.fta||0,minutes:r.minutes||0}));
-    await supabase.from("game_stats").upsert(upserts,{onConflict:"game_id,player_id"});
-    setSavingStats(false);
-    setShowStatsForm(null);
   };
 
   const addLeague=async()=>{
@@ -686,7 +618,7 @@ function League(){
     if(!form.opp||!form.date) return; setSaving(true);
     const d={date:form.date,time:form.time,opp:form.opp,venue:form.venue,home_away:form.home_away,type:activeLeague||expandedLeague||"General",us:form.us!==""?parseInt(form.us):null,them:form.them!==""?parseInt(form.them):null};
     if(editingGame) await supabase.from("games").update(d).eq("id",editingGame);
-    else{ await supabase.from("games").insert([d]); sendNotification("game",d); }
+    else await supabase.from("games").insert([d]);
     setSaving(false); setShowGameForm(false); setEditingGame(null); load();
   };
 
@@ -775,7 +707,6 @@ function League(){
                                 ):(
                                   <span style={{fontSize:12,color:BRAND.textSecondary,padding:"4px 10px",background:`${BRAND.border}55`,borderRadius:6}}>Upcoming</span>
                                 )}
-                                {hasScore&&<button onClick={()=>openStatsForm(g)} style={{...S.btn("gold"),padding:"5px 10px",fontSize:11}}>📊 Stats</button>}
                                 <button onClick={()=>{setActiveLeague(league);setForm({...g,us:g.us??"",them:g.them??""});setEditingGame(g.id);setShowGameForm(true);}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>✏️</button>
                                 <button onClick={()=>delGame(g.id)} style={{...S.btn("danger"),padding:"5px 10px",fontSize:11}}>🗑️</button>
                               </div>
@@ -802,47 +733,6 @@ function League(){
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={()=>setShowLeagueForm(false)} style={S.btn("secondary")}>Cancel</button>
             <button onClick={addLeague} style={S.btn("gold")}>Add League</button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Stats Entry Modal */}
-      {showStatsForm&&(
-        <Modal title={`📊 Stats — vs ${showStatsForm.opp} (${showStatsForm.date})`} onClose={()=>setShowStatsForm(null)}>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead>
-                <tr style={{color:BRAND.textSecondary}}>
-                  <th style={{textAlign:"left",padding:"6px 4px",position:"sticky",left:0,background:BRAND.surface,minWidth:120}}>Player</th>
-                  {["MIN","PTS","REB","AST","STL","BLK","TO","+/-","FGM","FGA","3PM","3PA","FTM","FTA"].map(h=>(
-                    <th key={h} style={{padding:"6px 4px",minWidth:48,textAlign:"center"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {statsRows.map(r=>(
-                  <tr key={r.player_id} style={{borderTop:`1px solid ${BRAND.border}`}}>
-                    <td style={{padding:"4px",position:"sticky",left:0,background:BRAND.surface,fontWeight:600,whiteSpace:"nowrap"}}>
-                      <span style={{color:BRAND.textSecondary,fontSize:10,marginRight:4}}>#{r.number}</span>{r.player_name}
-                    </td>
-                    {[["minutes","MIN"],["pts","PTS"],["reb","REB"],["ast","AST"],["stl","STL"],["blk","BLK"],["to_","TO"],["plus_minus","+/-"],["fgm","FGM"],["fga","FGA"],["tpm","3PM"],["tpa","3PA"],["ftm","FTM"],["fta","FTA"]].map(([field])=>(
-                      <td key={field} style={{padding:"2px"}}>
-                        <input
-                          type="number"
-                          value={r[field]??0}
-                          onChange={e=>updateStat(r.player_id,field,e.target.value)}
-                          style={{width:44,background:BRAND.charcoal,border:`1px solid ${BRAND.border}`,borderRadius:4,color:BRAND.textPrimary,textAlign:"center",padding:"4px 2px",fontSize:12}}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowStatsForm(null)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={saveStats} disabled={savingStats} style={S.btn("gold")}>{savingStats?"Saving…":"Save Stats"}</button>
           </div>
         </Modal>
       )}
@@ -957,8 +847,6 @@ function Announcements(){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({title:"",body:"",type:"Practice"});
-  const [imgFile,setImgFile]=useState(null);
-  const [imgPreview,setImgPreview]=useState(null);
   const [saving,setSaving]=useState(false);
   const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
   const colors={Practice:"#1e3a5f",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
@@ -966,23 +854,10 @@ function Announcements(){
   useEffect(()=>{ load(); },[]);
   const load=async()=>{ setLoading(true); const{data}=await supabase.from("announcements").select("*").order("created_at",{ascending:false}); if(data)setItems(data); setLoading(false); };
 
-  const handleImg=(e)=>{
-    const f=e.target.files[0]; if(!f) return;
-    setImgFile(f); setImgPreview(URL.createObjectURL(f));
-  };
-
   const save=async()=>{
     if(!form.title) return; setSaving(true);
-    let image_url=null;
-    if(imgFile){
-      const path=`announcements/${Date.now()}_${imgFile.name.replace(/\s+/g,"_")}`;
-      const{error:upErr}=await supabase.storage.from("announcement-images").upload(path,imgFile,{upsert:true});
-      if(!upErr){ const{data:pub}=supabase.storage.from("announcement-images").getPublicUrl(path); image_url=pub.publicUrl; }
-    }
-    const annData={...form,date:new Date().toISOString().split("T")[0],image_url};
-    await supabase.from("announcements").insert([annData]);
-    sendNotification("announcement",annData);
-    setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); setImgFile(null); setImgPreview(null); load();
+    await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0]}]);
+    setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); load();
   };
 
   const del=async(id)=>{ await supabase.from("announcements").delete().eq("id",id); load(); };
@@ -1003,29 +878,19 @@ function Announcements(){
                 <button onClick={()=>del(a.id)} style={{...S.btn("danger"),padding:"2px 10px",fontSize:11,marginLeft:"auto"}}>Remove</button>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6,marginBottom:a.image_url?10:0}}>{a.body}</div>}
-              {a.image_url&&<img src={a.image_url} alt={a.title} style={{width:"100%",maxHeight:400,objectFit:"contain",borderRadius:8,marginTop:4,background:"#111"}}/>}
+              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
             </div>
           ))}
           {items.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements yet.</div>}
         </div>
       )}
       {showForm&&(
-        <Modal title="New Announcement" onClose={()=>{setShowForm(false);setImgFile(null);setImgPreview(null);}}>
+        <Modal title="New Announcement" onClose={()=>setShowForm(false)}>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Title *</label><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={S.input}/></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Message <span style={{color:BRAND.textSecondary,fontWeight:400}}>(optional)</span></label><textarea value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}} placeholder="Leave blank if the image is the announcement"/></div>
+          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Message</label><textarea value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}}/></div>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={S.input}>{["Practice","Academic","Social","Schedule","General"].map(t=><option key={t}>{t}</option>)}</select></div>
-          <div style={{marginBottom:11}}>
-            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>Image <span style={{color:BRAND.textSecondary,fontWeight:400}}>(optional)</span></label>
-            {imgPreview&&<img src={imgPreview} alt="preview" style={{width:"100%",maxHeight:200,objectFit:"contain",borderRadius:8,marginBottom:8,background:"#111"}}/>}
-            <label style={{...S.btn("secondary"),padding:"7px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
-              🖼️ {imgFile?imgFile.name:"Choose Image"}
-              <input type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
-            </label>
-            {imgFile&&<button onClick={()=>{setImgFile(null);setImgPreview(null);}} style={{...S.btn("danger"),padding:"7px 12px",fontSize:12,marginLeft:8}}>✕ Remove</button>}
-          </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>{setShowForm(false);setImgFile(null);setImgPreview(null);}} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
             <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Posting…":"Post"}</button>
           </div>
         </Modal>
@@ -1034,7 +899,7 @@ function Announcements(){
   );
 }
 
-function AdminDashboard({players,loading,setPage,statsMap={}}){
+function AdminDashboard({players,loading,setPage}){
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
   const [practices,setPractices]=useState([]);
@@ -1051,13 +916,10 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
     supabase.from("attendance").select("*").order("created_at",{ascending:false}).limit(20).then(({data})=>{ if(data)setAttendance(data); });
   },[]);
 
-  // Use game_stats averages if available, else 0
-  const getStat=(p,k)=>(statsMap[p.id]?.[k]??0);
-  const hasStats=Object.keys(statsMap).length>0;
-  const avgPts=players.length?(players.reduce((a,p)=>a+getStat(p,"pts"),0)/players.length).toFixed(1):0;
-  const avgReb=players.length?(players.reduce((a,p)=>a+getStat(p,"reb"),0)/players.length).toFixed(1):0;
-  const avgAst=players.length?(players.reduce((a,p)=>a+getStat(p,"ast"),0)/players.length).toFixed(1):0;
-  const avgFg=players.length?(players.reduce((a,p)=>a+getStat(p,"fg"),0)/players.length).toFixed(1):0;
+  const avgPts=players.length?(players.reduce((a,p)=>a+p.pts,0)/players.length).toFixed(1):0;
+  const avgReb=players.length?(players.reduce((a,p)=>a+p.reb,0)/players.length).toFixed(1):0;
+  const avgAst=players.length?(players.reduce((a,p)=>a+p.ast,0)/players.length).toFixed(1):0;
+  const avgFg=players.length?(players.reduce((a,p)=>a+p.fg,0)/players.length).toFixed(1):0;
   const played=games.filter(g=>g.us!==null&&g.them!==null);
   const wins=played.filter(g=>g.us>g.them).length;
   const upcoming=games.filter(g=>g.us===null||g.them===null);
@@ -1105,38 +967,26 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
 
       {/* Team Stats Row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-        {players.length>0&&(()=>{
-          if(!hasStats) return(
-            <div style={{gridColumn:"1/-1",...S.card,textAlign:"center",padding:"18px",color:BRAND.textSecondary,fontSize:13}}>
-              📊 Leaders will appear here once game stats have been entered
-            </div>
-          );
-          const byPts=[...players].sort((a,b)=>getStat(b,"pts")-getStat(a,"pts"));
-          const byReb=[...players].sort((a,b)=>getStat(b,"reb")-getStat(a,"reb"));
-          const byAst=[...players].sort((a,b)=>getStat(b,"ast")-getStat(a,"ast"));
-          const byFg=[...players].sort((a,b)=>getStat(b,"fg")-getStat(a,"fg"));
-          const shortName=p=>p?.name?.split(" ").slice(0,2).join(" ")||"—";
-          return[
-            {l:"Scoring Leader",v:getStat(byPts[0],"pts"),name:shortName(byPts[0]),unit:"PPG"},
-            {l:"Rebounding Leader",v:getStat(byReb[0],"reb"),name:shortName(byReb[0]),unit:"RPG"},
-            {l:"Assists Leader",v:getStat(byAst[0],"ast"),name:shortName(byAst[0]),unit:"APG"},
-            {l:"FG% Leader",v:`${getStat(byFg[0],"fg")}%`,name:shortName(byFg[0]),unit:"FG%"},
-          ].map(({l,v,name,unit})=>(
-            <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
-              <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
-              <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
-              <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{unit}</div>
-              <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary,marginTop:6,borderTop:`1px solid ${BRAND.border}`,paddingTop:6}}>{name}</div>
-            </div>
-          ));
-        })()}
+        {players.length>0&&[
+          {l:"Scoring Leader",v:[...players].sort((a,b)=>b.pts-a.pts)[0]?.pts,name:[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"PPG"},
+          {l:"Rebounding Leader",v:[...players].sort((a,b)=>b.reb-a.reb)[0]?.reb,name:[...players].sort((a,b)=>b.reb-a.reb)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"RPG"},
+          {l:"Assists Leader",v:[...players].sort((a,b)=>b.ast-a.ast)[0]?.ast,name:[...players].sort((a,b)=>b.ast-a.ast)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"APG"},
+          {l:"FG% Leader",v:`${[...players].sort((a,b)=>b.fg-a.fg)[0]?.fg}%`,name:[...players].sort((a,b)=>b.fg-a.fg)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"FG%"},
+        ].map(({l,v,name,unit})=>(
+          <div key={l} style={{...S.statCard,textAlign:"left",padding:"14px 16px"}}>
+            <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
+            <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{v}</div>
+            <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{unit}</div>
+            <div style={{fontSize:12,fontWeight:600,color:BRAND.textPrimary,marginTop:6,borderTop:`1px solid ${BRAND.border}`,paddingTop:6}}>{name}</div>
+          </div>
+        ))}
       </div>
 
       {/* Main Dashboard Cards Grid */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Roster Card */}
-        <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>navigate("roster")}>
+        <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>setPage("roster")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {players.slice(0,4).map(p=>(
               <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1152,7 +1002,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* League Card */}
-        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>navigate("league")}>
+        <QuickCard icon="🏆" title="League" value={played.length?`${wins}–${played.length-wins}`:"—"} sub={`${leagues.length} league${leagues.length!==1?"s":""} · ${upcoming.length} upcoming`} color={BRAND.gold} onClick={()=>setPage("league")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {leagues.length>0?(
               leagues.map(league=>{
@@ -1179,7 +1029,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Practice Card */}
-        <QuickCard icon="🏋️" title="Practice" value={practices.length} sub="sessions scheduled" color="#a78bfa" onClick={()=>navigate("practice")}>
+        <QuickCard icon="🏋️" title="Practice" value={practices.length} sub="sessions scheduled" color="#a78bfa" onClick={()=>setPage("practice")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {practices.slice(0,3).map(p=>(
               <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
@@ -1198,7 +1048,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Attendance Card */}
-        <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>navigate("attendance")}>
+        <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>setPage("attendance")}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
             {["Present","Late","Excused","Absent"].map(s=>{
               const count=todayAtt.filter(a=>a.status===s).length;
@@ -1215,7 +1065,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Health Card */}
-        <QuickCard icon="🏥" title="Health Report" value={activeHealth} sub={`active reports · ${health.filter(h=>h.status==="Recovering").length} recovering`} color="#fb923c" onClick={()=>navigate("health")}>
+        <QuickCard icon="🏥" title="Health Report" value={activeHealth} sub={`active reports · ${health.filter(h=>h.status==="Recovering").length} recovering`} color="#fb923c" onClick={()=>setPage("health")}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {health.filter(h=>h.status!=="Cleared").slice(0,3).map(h=>(
               <div key={h.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BRAND.border}22`}}>
@@ -1231,7 +1081,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Stats Card */}
-        <QuickCard icon="📊" title="Statistics" value={`#1`} sub={`${players.length>0?[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "):"—"} leads scoring`} color="#60a5fa" onClick={()=>navigate("stats")}>
+        <QuickCard icon="📊" title="Statistics" value={`#1`} sub={`${players.length>0?[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "):"—"} leads scoring`} color="#60a5fa" onClick={()=>setPage("stats")}>
           {loading?<div style={{fontSize:12,color:BRAND.textSecondary}}>Loading…</div>:(
             <ResponsiveContainer width="100%" height={90}>
               <BarChart data={[...players].sort((a,b)=>b.pts-a.pts).slice(0,5).map(p=>({name:p.name.split(" ").pop(),pts:p.pts}))}>
@@ -1250,7 +1100,7 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
 
         {/* Announcements Card */}
-        <QuickCard icon="📢" title="Announcements" value={announcements.length} sub="recent posts" color="#fbbf24" onClick={()=>navigate("announcements")}>
+        <QuickCard icon="📢" title="Announcements" value={announcements.length} sub="recent posts" color="#fbbf24" onClick={()=>setPage("announcements")}>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {announcements.slice(0,3).map(a=>{
               const tc={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
@@ -1269,10 +1119,10 @@ function AdminDashboard({players,loading,setPage,statsMap={}}){
         </QuickCard>
 
         {/* Playbook Card */}
-        <QuickCard icon="📖" title="Playbook" value="→" sub="View & animate plays" color={BRAND.gold} onClick={()=>navigate("playbook")}>
+        <QuickCard icon="📖" title="Playbook" value="→" sub="View & animate plays" color={BRAND.gold} onClick={()=>setPage("playbook")}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
             {["Offense","Defense","Set Plays","Transition"].map(cat=>(
-              <div key={cat} onClick={e=>{e.stopPropagation();navigate("playbook");}} style={{flex:1,minWidth:80,textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"8px 4px",cursor:"pointer"}}>
+              <div key={cat} onClick={e=>{e.stopPropagation();setPage("playbook");}} style={{flex:1,minWidth:80,textAlign:"center",background:`${BRAND.crimson}22`,borderRadius:8,padding:"8px 4px",cursor:"pointer"}}>
                 <div style={{fontSize:11,fontWeight:600,color:BRAND.crimsonLight}}>{cat}</div>
               </div>
             ))}
@@ -1337,12 +1187,12 @@ function MyProfile({player,loadPlayers}){
           <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,padding:"12px 16px",background:BRAND.charcoal,borderRadius:10}}>
             <Avatar initials={p.photo||"??"} size={60} color={BRAND.gold} photoUrl={photoPreview||p.photo_url||null}/>
             <div>
-              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PROFILE PHOTO</div>
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6}}>PHOTO DE PROFIL</div>
               <label style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block"}}>
-                📷 {uploadingPhoto?"Uploading…":"Change Photo"}
+                📷 {uploadingPhoto?"Uploading…":"Changer ma photo"}
                 <input type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoChange}/>
               </label>
-              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo selected — will be saved with your info</div>}
+              {photoPreview&&<div style={{fontSize:11,color:"#4ade80",marginTop:4}}>✅ Photo sélectionnée — sera sauvegardée avec vos infos</div>}
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
@@ -1580,46 +1430,6 @@ function PlayerSchedule(){
   );
 }
 
-function PlayerPractices(){
-  const [items,setItems]=useState([]);
-  const [loading,setLoading]=useState(true);
-  useEffect(()=>{
-    supabase.from("practices").select("*").order("date",{ascending:true}).then(({data})=>{ if(data)setItems(data); setLoading(false); });
-  },[]);
-  const typeColors={Game:"#f59e0b",Practice:"#60a5fa",Film:"#a78bfa",Conditioning:"#4ade80",Scrimmage:"#f87171"};
-  return(
-    <div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Practices</h1>
-      {loading?<Spinner/>:items.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No practices scheduled yet.</div>:(
-        <div style={{display:"grid",gap:12}}>
-          {items.map((p,i)=>{
-            const d=new Date(p.date+"T00:00");
-            const isPast=d<new Date();
-            return(
-              <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:16,opacity:isPast?0.65:1}}>
-                <div style={{width:48,textAlign:"center",flexShrink:0}}>
-                  <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{d.toLocaleString("en",{month:"short"})}</div>
-                  <div style={{fontSize:24,fontWeight:800,color:typeColors[p.type]||BRAND.textPrimary,lineHeight:1}}>{d.getDate()}</div>
-                </div>
-                <div style={{width:1,height:44,background:typeColors[p.type]||BRAND.border}}/>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                    <span style={{padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:700,background:`${typeColors[p.type]||BRAND.border}33`,color:typeColors[p.type]||BRAND.textSecondary}}>{p.type||"Practice"}</span>
-                    <span style={{fontSize:12,color:BRAND.textSecondary}}>{p.time}</span>
-                  </div>
-                  <div style={{fontWeight:700,fontSize:15}}>{p.title||p.type||"Practice"}</div>
-                  <div style={{fontSize:12,color:BRAND.textSecondary}}>{p.location} {p.notes&&`· ${p.notes}`}</div>
-                </div>
-                {isPast&&<span style={{fontSize:11,color:BRAND.textSecondary,flexShrink:0}}>Completed</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PlayerAnnouncements(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1638,8 +1448,7 @@ function PlayerAnnouncements(){
                 <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date}</span>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6,marginBottom:a.image_url?10:0}}>{a.body}</div>}
-              {a.image_url&&<img src={a.image_url} alt={a.title} style={{width:"100%",maxHeight:420,objectFit:"contain",borderRadius:8,marginTop:4,background:"#111"}}/>}
+              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
             </div>
           ))}
         </div>
@@ -1707,51 +1516,16 @@ export default function App(){
   const [loggedIn,setLoggedIn]=useState(false);
   const [role,setRole]=useState(null);
   const [currentPlayer,setCurrentPlayer]=useState(null);
-  const [page,setPage]=useState(()=>{ try{ return localStorage.getItem("titans_page")||"dashboard"; }catch(e){ return "dashboard"; } });
+  const [page,setPage]=useState("dashboard");
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
   const [authLoading,setAuthLoading]=useState(true);
-  const [globalStatsMap,setGlobalStatsMap]=useState({});
-  const [navOpen,setNavOpen]=useState(false);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
-    const[{data},{data:gsData}]=await Promise.all([
-      supabase.from("players").select("*").order("jersey",{ascending:true}),
-      supabase.from("game_stats").select("*")
-    ]);
+    const{data}=await supabase.from("players").select("*").order("jersey",{ascending:true});
     if(data) setPlayers(data);
-    // Build averages map from game_stats
-    if(gsData&&gsData.length>0){
-      const grouped={};
-      gsData.forEach(r=>{
-        if(!grouped[r.player_id]) grouped[r.player_id]=[];
-        grouped[r.player_id].push(r);
-      });
-      const avg={};
-      Object.entries(grouped).forEach(([pid,rows])=>{
-        const n=rows.length;
-        const sum=(f)=>rows.reduce((s,r)=>s+(r[f]||0),0);
-        const fgm=sum("fgm"),fga=sum("fga"),tpm=sum("tpm"),tpa=sum("tpa"),ftm=sum("ftm"),fta=sum("fta");
-        avg[pid]={
-          gp:n,
-          pts:+(sum("pts")/n).toFixed(1),
-          reb:+(sum("reb")/n).toFixed(1),
-          ast:+(sum("ast")/n).toFixed(1),
-          stl:+(sum("stl")/n).toFixed(1),
-          blk:+(sum("blk")/n).toFixed(1),
-          to_:+(sum("to_")/n).toFixed(1),
-          plus_minus:+(sum("plus_minus")/n).toFixed(1),
-          fg:fga>0?+((fgm/fga)*100).toFixed(1):0,
-          threept:tpa>0?+((tpm/tpa)*100).toFixed(1):0,
-          ft:fta>0?+((ftm/fta)*100).toFixed(1):0,
-        };
-      });
-      setGlobalStatsMap(avg);
-    } else {
-      setGlobalStatsMap({});
-    }
     setPlayersLoading(false);
     return data;
   };
@@ -1771,13 +1545,7 @@ export default function App(){
           playerData=pl;
         }
         setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
-        // Only set default page if none is saved, or saved page doesn't match role nav
-        const savedPage=localStorage.getItem("titans_page");
-        const adminNav=ADMIN_NAV.map(n=>n.id);
-        const playerNav=PLAYER_NAV.map(n=>n.id);
-        const validPages=isAdmin(r)?adminNav:playerNav;
-        const defaultPage=isAdmin(r)?"dashboard":"myprofile";
-        setPage(savedPage&&validPages.includes(savedPage)?savedPage:defaultPage);
+        setPage(isAdmin(r)?"dashboard":"myprofile");
         return true;
       }catch(e){ return false; }
     };
@@ -1805,9 +1573,8 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const navigate=(p)=>{ try{ localStorage.setItem("titans_page",p); }catch(e){} setPage(p); setNavOpen(false); };
-  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); const dp=isAdmin(r)?"dashboard":"myprofile"; try{ localStorage.setItem("titans_page",dp); }catch(e){} setPage(dp); };
-  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); try{ localStorage.removeItem("titans_page"); }catch(e){} setPage("dashboard"); };
+  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
+  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
 
   if(authLoading) return(
     <div style={{background:"#0D0D0D",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1823,9 +1590,9 @@ export default function App(){
   const freshPlayer=currentPlayer&&players.length>0?players.find(p=>p.id===currentPlayer.id)||currentPlayer:currentPlayer;
 
   const adminPages={
-    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage} statsMap={globalStatsMap}/>,
-    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading} statsMap={globalStatsMap}/>,
-    stats:<Statistics players={players} statsMap={globalStatsMap}/>,
+    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
+    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading}/>,
+    stats:<Statistics players={players}/>,
     attendance:<AdminAttendance players={players}/>,
     practice:<Practice/>,
     league:<League/>,
@@ -1841,9 +1608,8 @@ export default function App(){
     myattendance:<MyAttendance player={freshPlayer||{}}/>,
     myhealth:<MyHealth player={freshPlayer||{}}/>,
     schedule:<PlayerSchedule/>,
-    practices:<PlayerPractices/>,
-    announcements:<PlayerAnnouncements/>,
     playbook:<Playbook isAdmin={false}/>,
+    announcements:<PlayerAnnouncements/>,
   };
 
   const nav=isAdmin(role)?ADMIN_NAV:PLAYER_NAV;
@@ -1851,73 +1617,30 @@ export default function App(){
 
   return(
     <div style={S.app}>
-      <style>{`
-        /* ── MOBILE: ≤767px — sidebar as overlay ── */
-        @media(max-width:767px){
-          .titans-nav{
-            position:fixed!important; left:0; top:0; height:100vh!important;
-            width:220px!important; z-index:200;
-            transform:translateX(-100%); transition:transform 0.25s ease;
-            box-shadow:4px 0 24px #000a;
-            min-height:100vh!important;
-          }
-          .titans-nav.open{ transform:translateX(0)!important; }
-          .titans-overlay{ display:block!important; }
-          .titans-main{ padding:16px 14px!important; }
-          .titans-header-sub{ display:none!important; }
-          .titans-player-name{ display:none!important; }
-        }
-        /* ── TABLET portrait: 768–1023px — compact icon+label sidebar ── */
-        @media(min-width:768px) and (max-width:1023px){
-          .titans-hamburger{ display:none!important; }
-          .titans-overlay{ display:none!important; }
-          .titans-nav{ width:160px!important; }
-          .titans-nav-label{ font-size:11px!important; }
-          .titans-main{ padding:18px 16px!important; }
-          .titans-header-sub{ display:none!important; }
-          .titans-player-name{ display:none!important; }
-        }
-        /* ── DESKTOP: ≥1024px — full sidebar ── */
-        @media(min-width:1024px){
-          .titans-hamburger{ display:none!important; }
-          .titans-overlay{ display:none!important; }
-        }
-      `}</style>
-
-      {/* Mobile overlay backdrop */}
-      <div className="titans-overlay" onClick={()=>setNavOpen(false)}
-        style={{display:"none",position:"fixed",inset:0,background:"#000a",zIndex:199}}/>
-
       <header style={S.header}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {/* Hamburger — mobile only */}
-          <button className="titans-hamburger" onClick={()=>setNavOpen(o=>!o)}
-            style={{background:"none",border:"none",cursor:"pointer",padding:"6px 8px",color:BRAND.textPrimary,fontSize:20,lineHeight:1,marginRight:2}}>
-            {navOpen?"✕":"☰"}
-          </button>
-          <TitansLogo size={30}/>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <TitansLogo size={34}/>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:BRAND.textPrimary,lineHeight:1}}>Enderun Titans</div>
-            <div className="titans-header-sub" style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT · POWERED BY SUPABASE</div>
+            <div style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT · POWERED BY SUPABASE</div>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{padding:"3px 9px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
-          <span className="titans-player-name" style={{fontSize:12,color:BRAND.textSecondary}}>{freshPlayer?.name}</span>
-          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:12}}>Sign Out</button>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
+          {freshPlayer&&<span style={{fontSize:12,color:BRAND.textSecondary}}>{freshPlayer.name}</span>}
+          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 14px",fontSize:12}}>Sign Out</button>
         </div>
       </header>
-
-      <div style={{display:"flex",flex:1,position:"relative"}}>
-        <nav className={`titans-nav${navOpen?" open":""}`} style={S.nav}>
+      <div style={{display:"flex",flex:1}}>
+        <nav style={S.nav}>
           <div style={{padding:"6px 18px 12px",fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary}}>
             {isAdmin(role)?"Admin Panel":"Player Portal"}
           </div>
           {nav.map(item=>(
-            <div key={item.id} onClick={()=>navigate(item.id)} style={S.navItem(page===item.id)}>
+            <button key={item.id} onClick={()=>setPage(item.id)} style={{...S.navItem(page===item.id),border:"none",width:"100%",textAlign:"left",background:page===item.id?`${BRAND.crimson}22`:"transparent"}}>
               <span style={{fontSize:15}}>{item.icon}</span>
-              <span className="titans-nav-label">{item.label}</span>
-            </div>
+              <span>{item.label}</span>
+            </button>
           ))}
           {isAdmin(role)&&!playersLoading&&(
             <div style={{padding:"16px 16px 8px",marginTop:10,borderTop:`1px solid ${BRAND.border}`}}>
@@ -1930,7 +1653,7 @@ export default function App(){
             </div>
           )}
         </nav>
-        <main className="titans-main" style={S.main}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
+        <main style={S.main}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
       </div>
     </div>
   );
