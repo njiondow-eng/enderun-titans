@@ -1264,52 +1264,70 @@ function PlayerDashboard({player,players,setPage}){
         </div>
       </div>
 
-      {/* Upcoming Practices */}
+      {/* Upcoming Schedule — practices + games combined */}
       <div style={{...S.card,marginBottom:14}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏋️ Upcoming Practices</div>
-        {practices.length===0
-          ?<div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming practices scheduled.</div>
-          :practices.map(p=>(
-            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
-              <div style={{minWidth:44,textAlign:"center",background:"#1a1040",borderRadius:8,padding:"5px 6px"}}>
-                <div style={{fontSize:9,color:"#a78bfa",fontWeight:600,textTransform:"uppercase"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(p.date+"T00:00:00").getDay()]}</div>
-                <div style={{fontSize:16,color:"#c4b5fd",fontWeight:800}}>{new Date(p.date+"T00:00:00").getDate()}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700}}>📅 Upcoming Schedule</div>
+          <button onClick={()=>setPage("schedule")} style={{background:"none",border:"none",color:BRAND.gold,fontSize:11,cursor:"pointer",fontWeight:600}}>Full schedule →</button>
+        </div>
+        {(()=>{
+          const upcoming=[
+            ...practices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",sub:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+            ...upcomingGames.slice(0,5).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,sub:[g.type,g.venue].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
+          ].sort((a,b)=>a._date-b._date).slice(0,6);
+          if(upcoming.length===0) return <div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming events scheduled.</div>;
+          return upcoming.map((ev,i)=>{
+            const isGame=ev.kind==="Game"||ev.kind==="League Game";
+            return(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:i<upcoming.length-1?"1px solid #1a1a1a":"none"}}>
+                <div style={{minWidth:46,textAlign:"center",background:isGame?"#1f0a0a":"#1a1040",borderRadius:8,padding:"5px 6px",flexShrink:0}}>
+                  <div style={{fontSize:9,color:isGame?BRAND.crimsonLight:"#a78bfa",fontWeight:600,textTransform:"uppercase"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][ev._date.getDay()]}</div>
+                  <div style={{fontSize:16,color:isGame?BRAND.gold:"#c4b5fd",fontWeight:800,lineHeight:1.1}}>{ev._date.getDate()}</div>
+                  <div style={{fontSize:8,color:"#555",textTransform:"uppercase"}}>{ev._date.toLocaleString("en",{month:"short"})}</div>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:4,background:isGame?`${BRAND.crimson}33`:`${BRAND.border}55`,color:isGame?BRAND.crimsonLight:BRAND.textSecondary}}>{ev.kind}</span>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                  {ev.sub&&<div style={{fontSize:11,color:BRAND.textSecondary}}>{ev.sub}</div>}
+                </div>
               </div>
-              <div>
-                <div style={{fontSize:13,fontWeight:600}}>{p.type||"Practice"}</div>
-                <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.time||""}{p.location?` · ${p.location}`:""}</div>
-              </div>
-            </div>
-          ))
-        }
+            );
+          });
+        })()}
       </div>
 
       {/* Leagues & Tournaments */}
+      {leagues.length>0&&(
       <div style={{...S.card,marginBottom:14}}>
         <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏆 Leagues & Tournaments</div>
-        {leagues.length===0
-          ?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>
-          :leagues.map(lg=>{
-            const next=upcomingGames.slice(0,2);
-            return(
-              <div key={lg.id} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid #1a1a1a"}}>
-                <div style={{fontSize:13,fontWeight:700,color:BRAND.gold,marginBottom:6}}>{lg.name}</div>
-                <div style={{fontSize:12,color:"#888",marginBottom:4}}>Team record: <span style={{color:BRAND.textPrimary,fontWeight:600}}>{wins}W – {losses}L</span></div>
-                {next.length===0
-                  ?<div style={{fontSize:11,color:"#555"}}>No upcoming games</div>
-                  :next.map(g=>(
-                    <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,padding:"5px 0",color:BRAND.textSecondary}}>
-                      <span style={{minWidth:60,color:BRAND.gold,fontWeight:600}}>{fmtDate(g.date)}</span>
-                      <span>vs <strong style={{color:BRAND.textPrimary}}>{g.opp||"TBD"}</strong></span>
-                      {g.venue&&<span style={{fontSize:10,color:"#555"}}>· {g.venue}</span>}
-                    </div>
-                  ))
-                }
+        {leagues.map((lg,li)=>{
+          const lgGames=games.filter(g=>g.type===lg.name);
+          const played=lgGames.filter(g=>g.us!=null&&g.them!=null);
+          const lgWins=played.filter(g=>g.us>g.them).length;
+          const lgNext=lgGames.filter(g=>new Date(g.date+"T00:00:00")>=today).slice(0,2);
+          return(
+            <div key={lg.id} style={{marginBottom:li<leagues.length-1?12:0,paddingBottom:li<leagues.length-1?12:0,borderBottom:li<leagues.length-1?"1px solid #1a1a1a":"none"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                <div style={{fontSize:13,fontWeight:700,color:BRAND.gold}}>{lg.name}</div>
+                {played.length>0&&<span style={{fontSize:11,fontWeight:700,color:lgWins>played.length-lgWins?"#4ade80":BRAND.crimsonLight}}>{lgWins}W – {played.length-lgWins}L</span>}
               </div>
-            );
-          })
-        }
+              {lgNext.length===0
+                ?<div style={{fontSize:11,color:"#555"}}>No upcoming games in this league</div>
+                :lgNext.map(g=>(
+                  <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,padding:"4px 0",color:BRAND.textSecondary}}>
+                    <span style={{minWidth:56,color:BRAND.gold,fontWeight:600}}>{fmtDate(g.date)}</span>
+                    <span>vs <strong style={{color:BRAND.textPrimary}}>{g.opp||"TBD"}</strong></span>
+                    {g.venue&&<span style={{fontSize:10,color:"#555",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>· {g.venue}</span>}
+                  </div>
+                ))
+              }
+            </div>
+          );
+        })}
       </div>
+      )}
 
       {/* Announcements */}
       {announcements.length>0&&(
@@ -1599,33 +1617,101 @@ function MyHealth({player}){
 function PlayerSchedule(){
   const [practices,setPractices]=useState([]);
   const [games,setGames]=useState([]);
+  const [leagues,setLeagues]=useState([]);
+  const [filter,setFilter]=useState("all");
+  const [loading,setLoading]=useState(true);
+
   useEffect(()=>{
-    supabase.from("practices").select("*").order("date").then(({data})=>{ if(data)setPractices(data); });
-    supabase.from("games").select("*").order("date").then(({data})=>{ if(data)setGames(data); });
+    Promise.all([
+      supabase.from("practices").select("*").order("date"),
+      supabase.from("games").select("*").order("date"),
+      supabase.from("leagues").select("*").order("created_at"),
+    ]).then(([p,g,l])=>{
+      setPractices(p.data||[]);
+      setGames(g.data||[]);
+      setLeagues(l.data||[]);
+      setLoading(false);
+    });
   },[]);
-  const items=[...practices.map(p=>({...p,kind:"Practice",title:p.type})),...games.map(g=>({...g,kind:"Game",title:`vs ${g.opp}`}))].sort((a,b)=>a.date.localeCompare(b.date));
+
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  const allItems=[
+    ...practices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+    ...games.map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
+  ].sort((a,b)=>a._date-b._date);
+
+  const kindColor={Practice:BRAND.textSecondary,"Game":BRAND.gold,"League Game":BRAND.crimsonLight};
+  const kindBg={Practice:`${BRAND.border}55`,"Game":`${BRAND.gold}22`,"League Game":`${BRAND.crimson}33`};
+  const barColor={Practice:BRAND.border,"Game":BRAND.gold,"League Game":BRAND.crimson};
+
+  const upcoming=allItems.filter(ev=>ev._date>=today);
+  const past=allItems.filter(ev=>ev._date<today);
+  const shown=filter==="upcoming"?upcoming:filter==="past"?past:allItems;
+
+  const leagueNames=leagues.map(l=>l.name);
+
   return(
     <div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Schedule</h1>
-      {items.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No schedule yet.</div>:(
-        <div style={{display:"grid",gap:12}}>
-          {items.map((ev,i)=>(
-            <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:16}}>
-              <div style={{width:48,textAlign:"center",flexShrink:0}}>
-                <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(ev.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
-                <div style={{fontSize:24,fontWeight:800,color:ev.kind==="Game"?BRAND.gold:BRAND.textPrimary,lineHeight:1}}>{new Date(ev.date+"T00:00").getDate()}</div>
-              </div>
-              <div style={{width:1,height:44,background:ev.kind==="Game"?BRAND.crimson:BRAND.border}}/>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:700,background:ev.kind==="Game"?`${BRAND.crimson}33`:`${BRAND.border}55`,color:ev.kind==="Game"?BRAND.crimsonLight:BRAND.textSecondary}}>{ev.kind}</span>
-                  <span style={{fontSize:12,color:BRAND.textSecondary}}>{ev.time}</span>
-                </div>
-                <div style={{fontWeight:700,fontSize:15}}>{ev.title}</div>
-                <div style={{fontSize:12,color:BRAND.textSecondary}}>{ev.location||ev.venue} {ev.home_away&&`· ${ev.home_away}`}</div>
-              </div>
-            </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Team Schedule</h1>
+        <div style={{display:"flex",gap:6}}>
+          {["all","upcoming","past"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:filter===f?BRAND.crimson:`${BRAND.border}55`,color:filter===f?"#fff":BRAND.textSecondary,textTransform:"capitalize"}}>
+              {f}
+            </button>
           ))}
+        </div>
+      </div>
+
+      {/* League overview pills */}
+      {leagueNames.length>0&&(
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          {leagueNames.map(name=>{
+            const lg=games.filter(g=>g.type===name);
+            const played=lg.filter(g=>g.us!=null&&g.them!=null);
+            const wins=played.filter(g=>g.us>g.them).length;
+            return(
+              <div key={name} style={{...S.card,marginBottom:0,padding:"8px 14px",display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:13}}>🏆</span>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:BRAND.gold}}>{name}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{played.length?`${wins}W–${played.length-wins}L`:"Season ongoing"} · {lg.length} game{lg.length!==1?"s":""}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {loading?<Spinner/>:shown.length===0?(
+        <div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No events to show.</div>
+      ):(
+        <div style={{display:"grid",gap:10}}>
+          {shown.map((ev,i)=>{
+            const isPast=ev._date<today;
+            const hasResult=ev.us!=null&&ev.them!=null;
+            return(
+              <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:14,opacity:isPast?0.7:1}}>
+                <div style={{width:44,textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase",fontWeight:600}}>{ev._date.toLocaleString("en",{month:"short"})}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:isPast?BRAND.textSecondary:kindColor[ev.kind]||BRAND.gold,lineHeight:1}}>{ev._date.getDate()}</div>
+                  <div style={{fontSize:9,color:BRAND.textSecondary}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][ev._date.getDay()]}</div>
+                </div>
+                <div style={{width:2,height:46,background:barColor[ev.kind]||BRAND.border,borderRadius:2,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                    <span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:kindBg[ev.kind]||`${BRAND.border}55`,color:kindColor[ev.kind]||BRAND.textSecondary,whiteSpace:"nowrap"}}>{ev.kind}</span>
+                    {isPast&&hasResult&&<span style={{fontSize:11,fontWeight:700,color:ev.us>ev.them?"#4ade80":BRAND.crimsonLight}}>{ev.us>ev.them?"W":"L"} {ev.us}–{ev.them}</span>}
+                    {isPast&&!hasResult&&ev.kind!=="Practice"&&<span style={{fontSize:10,color:"#555"}}>No result</span>}
+                    {!isPast&&<span style={{fontSize:10,color:"#4ade80",fontWeight:600}}>Upcoming</span>}
+                  </div>
+                  <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
+                  {ev.subtitle&&<div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.subtitle}</div>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
