@@ -1233,7 +1233,7 @@ function PlayerDashboard({player:p,players,setPage}){
       {/* Main grid — 2 cols */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
 
-        {/* My Stats vs Team */}
+        {/* Left — My Stats vs Team */}
         <div style={{...S.card,marginBottom:0}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
             <div style={{fontWeight:700,fontSize:15}}>📈 My Stats vs Team Average</div>
@@ -1252,53 +1252,82 @@ function PlayerDashboard({player:p,players,setPage}){
         {/* Right col */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-          {/* Upcoming Games */}
+          {/* Upcoming Practices */}
+          {(()=>{const upPractices=practices.filter(pr=>pr.date>=now).slice(0,4);return(
           <div style={{...S.card,marginBottom:0}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:15}}>🏆 Upcoming Games</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <div style={{fontWeight:700,fontSize:15}}>🏋️ Upcoming Practices</div>
               <button onClick={()=>setPage("schedule")} style={{...S.btn("secondary"),padding:"4px 12px",fontSize:11}}>Schedule →</button>
             </div>
-            {upcoming.length===0?
-              <div style={{textAlign:"center",color:BRAND.textSecondary,fontSize:13,padding:"10px 0"}}>No upcoming games</div>:
-              upcoming.map((g,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:i<upcoming.length-1?`1px solid ${BRAND.border}`:"none"}}>
-                  <div style={{width:38,textAlign:"center",flexShrink:0}}>
-                    <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
-                    <div style={{fontSize:20,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{new Date(g.date+"T00:00").getDate()}</div>
+            {upPractices.length===0?
+              <div style={{textAlign:"center",color:BRAND.textSecondary,fontSize:13,padding:"8px 0"}}>No practices scheduled</div>:
+              upPractices.map((pr,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:i<upPractices.length-1?`1px solid ${BRAND.border}`:"none"}}>
+                  <div style={{width:38,textAlign:"center",flexShrink:0,background:`${"#a78bfa"}22`,borderRadius:8,padding:"4px 0"}}>
+                    <div style={{fontSize:9,color:"#a78bfa",textTransform:"uppercase",fontWeight:600}}>{new Date(pr.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
+                    <div style={{fontSize:18,fontWeight:800,color:"#a78bfa",lineHeight:1.1}}>{new Date(pr.date+"T00:00").getDate()}</div>
                   </div>
-                  <div style={{width:2,height:36,background:BRAND.crimson,borderRadius:2}}/>
-                  <div>
-                    <div style={{fontWeight:600,fontSize:13}}>vs {g.opp}</div>
-                    <div style={{fontSize:11,color:BRAND.textSecondary}}>{g.time} · {g.venue} · {g.home_away}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{pr.type}</div>
+                    <div style={{fontSize:11,color:BRAND.textSecondary}}>{pr.time} · {pr.location}</div>
                   </div>
+                  <span style={{fontSize:10,padding:"2px 8px",borderRadius:6,background:`${"#a78bfa"}22`,color:"#a78bfa",fontWeight:600}}>{new Date(pr.date+"T00:00").toLocaleString("en",{weekday:"short"})}</span>
                 </div>
               ))
             }
           </div>
+          )})()}
 
-          {/* Leagues */}
+          {/* Leagues & Tournaments + Upcoming Games */}
           <div style={{...S.card,marginBottom:0}}>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:10}}>🥇 Leagues & Tournaments</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontWeight:700,fontSize:15}}>🏆 Leagues & Tournaments</div>
+              <button onClick={()=>setPage("schedule")} style={{...S.btn("secondary"),padding:"4px 12px",fontSize:11}}>Schedule →</button>
+            </div>
+            {/* League list */}
             {leagues.length===0?
               <div style={{textAlign:"center",color:BRAND.textSecondary,fontSize:13,padding:"6px 0"}}>No leagues registered</div>:
-              leagues.slice(0,3).map((lg,i)=>{
+              leagues.slice(0,2).map((lg,i)=>{
                 const lgGames=lg.games||[];
                 const lgPlayed=lgGames.filter(g=>g.us!=null&&g.them!=null);
                 const lgWins=lgPlayed.filter(g=>+g.us>+g.them).length;
+                const lgUpcoming=lgGames.filter(g=>g.date>=now&&(g.us==null||g.them==null));
                 return(
-                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:i<Math.min(leagues.length,3)-1?`1px solid ${BRAND.border}`:"none"}}>
-                    <div>
+                  <div key={i} style={{marginBottom:10,padding:"8px 10px",background:BRAND.charcoal,borderRadius:8}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:lgUpcoming.length>0?8:0}}>
                       <div style={{fontWeight:600,fontSize:13}}>{lg.name}</div>
-                      <div style={{fontSize:11,color:BRAND.textSecondary}}>{lgGames.length} games total</div>
+                      <div style={{fontSize:14,fontWeight:700,color:BRAND.gold}}>{lgPlayed.length?`${lgWins}–${lgPlayed.length-lgWins}`:"—"} <span style={{fontSize:10,color:BRAND.textSecondary,fontWeight:400}}>W–L</span></div>
                     </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:14,fontWeight:700,color:BRAND.gold}}>{lgPlayed.length?`${lgWins}–${lgPlayed.length-lgWins}`:"—"}</div>
-                      <div style={{fontSize:10,color:BRAND.textSecondary}}>W–L</div>
-                    </div>
+                    {lgUpcoming.slice(0,2).map((g,j)=>(
+                      <div key={j} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderTop:`1px solid ${BRAND.border}`}}>
+                        <span style={{fontSize:10,color:BRAND.crimsonLight,fontWeight:600,width:32}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short",day:"numeric"})}</span>
+                        <span style={{fontSize:11,color:BRAND.textPrimary}}>vs {g.opp}</span>
+                        <span style={{fontSize:10,color:BRAND.textSecondary,marginLeft:"auto"}}>{g.home_away}</span>
+                      </div>
+                    ))}
                   </div>
                 );
               })
             }
+            {/* Upcoming games not in a league */}
+            {upcoming.filter(g=>g.date>=now).length>0&&leagues.length===0&&(
+              <div>
+                <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:6,marginTop:4}}>UPCOMING GAMES</div>
+                {upcoming.map((g,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:i<upcoming.length-1?`1px solid ${BRAND.border}`:"none"}}>
+                    <div style={{width:38,textAlign:"center",flexShrink:0}}>
+                      <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
+                      <div style={{fontSize:18,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{new Date(g.date+"T00:00").getDate()}</div>
+                    </div>
+                    <div style={{width:2,height:32,background:BRAND.crimson,borderRadius:2}}/>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:13}}>vs {g.opp}</div>
+                      <div style={{fontSize:11,color:BRAND.textSecondary}}>{g.time} · {g.venue}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
