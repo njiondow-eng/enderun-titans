@@ -1719,6 +1719,7 @@ export default function App(){
   const [role,setRole]=useState(null);
   const [currentPlayer,setCurrentPlayer]=useState(null);
   const [page,setPage]=useState("dashboard");
+  const [navOpen,setNavOpen]=useState(false);
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
@@ -1818,29 +1819,55 @@ export default function App(){
   const nav=isAdmin(role)?ADMIN_NAV:PLAYER_NAV;
   const pages=isAdmin(role)?adminPages:playerPages;
 
+  const isMobile=typeof window!=="undefined"&&window.innerWidth<768;
+
   return(
     <div style={S.app}>
       <header style={S.header}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button
+            onClick={()=>setNavOpen(o=>!o)}
+            style={{background:"none",border:"none",cursor:"pointer",color:BRAND.textPrimary,fontSize:22,lineHeight:1,padding:"4px 6px",display:"flex",alignItems:"center"}}
+            aria-label="Toggle menu"
+          >
+            {navOpen?"✕":"☰"}
+          </button>
           <TitansLogo size={34}/>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:BRAND.textPrimary,lineHeight:1}}>Enderun Titans</div>
-            <div style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT · POWERED BY SUPABASE</div>
+            <div style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT</div>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
-          {freshPlayer&&<span style={{fontSize:12,color:BRAND.textSecondary}}>{freshPlayer.name}</span>}
-          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 14px",fontSize:12}}>Sign Out</button>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{padding:"3px 8px",borderRadius:10,fontSize:10,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
+          {freshPlayer&&<span style={{fontSize:11,color:BRAND.textSecondary,maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{freshPlayer.name?.split(" ")[0]}</span>}
+          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>Sign Out</button>
         </div>
       </header>
-      <div style={{display:"flex",flex:1}}>
-        <nav style={S.nav}>
+      <div style={{display:"flex",flex:1,position:"relative"}}>
+        {navOpen&&(
+          <div
+            onClick={()=>setNavOpen(false)}
+            style={{position:"fixed",inset:0,top:60,background:"rgba(0,0,0,0.5)",zIndex:99}}
+          />
+        )}
+        <nav style={{
+          ...S.nav,
+          position:"fixed",
+          top:60,
+          left:0,
+          bottom:0,
+          zIndex:100,
+          transform:navOpen?"translateX(0)":"translateX(-100%)",
+          transition:"transform 0.25s ease",
+          overflowY:"auto",
+          boxShadow:navOpen?"4px 0 20px rgba(0,0,0,0.4)":"none",
+        }}>
           <div style={{padding:"6px 18px 12px",fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary}}>
             {isAdmin(role)?"Admin Panel":"Player Portal"}
           </div>
           {nav.map(item=>(
-            <div key={item.id} onClick={()=>setPage(item.id)} style={S.navItem(page===item.id)}>
+            <div key={item.id} onClick={()=>{setPage(item.id);setNavOpen(false);}} style={S.navItem(page===item.id)}>
               <span style={{fontSize:15}}>{item.icon}</span>
               <span>{item.label}</span>
             </div>
@@ -1856,7 +1883,7 @@ export default function App(){
             </div>
           )}
         </nav>
-        <main style={S.main}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
+        <main style={{...S.main,width:"100%"}}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
       </div>
     </div>
   );
