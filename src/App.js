@@ -1713,6 +1713,7 @@ export default function App(){
   const [seeded,setSeeded]=useState(false);
   const [authLoading,setAuthLoading]=useState(true);
   const [globalStatsMap,setGlobalStatsMap]=useState({});
+  const [navOpen,setNavOpen]=useState(false);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
@@ -1804,7 +1805,7 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const navigate=(p)=>{ try{ localStorage.setItem("titans_page",p); }catch(e){} setPage(p); };
+  const navigate=(p)=>{ try{ localStorage.setItem("titans_page",p); }catch(e){} setPage(p); setNavOpen(false); };
   const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); const dp=isAdmin(r)?"dashboard":"myprofile"; try{ localStorage.setItem("titans_page",dp); }catch(e){} setPage(dp); };
   const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); try{ localStorage.removeItem("titans_page"); }catch(e){} setPage("dashboard"); };
 
@@ -1850,22 +1851,47 @@ export default function App(){
 
   return(
     <div style={S.app}>
+      <style>{`
+        @media(max-width:640px){
+          .titans-nav{ position:fixed!important; left:0; top:0; height:100vh; z-index:200; transform:translateX(-100%); transition:transform 0.25s ease; box-shadow:4px 0 24px #000a; }
+          .titans-nav.open{ transform:translateX(0)!important; }
+          .titans-overlay{ display:block!important; }
+          .titans-main{ padding:16px 14px!important; }
+          .titans-header-sub{ display:none!important; }
+          .titans-player-name{ display:none!important; }
+        }
+        @media(min-width:641px){
+          .titans-hamburger{ display:none!important; }
+          .titans-overlay{ display:none!important; }
+        }
+      `}</style>
+
+      {/* Mobile overlay backdrop */}
+      <div className="titans-overlay" onClick={()=>setNavOpen(false)}
+        style={{display:"none",position:"fixed",inset:0,background:"#000a",zIndex:199}}/>
+
       <header style={S.header}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <TitansLogo size={34}/>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {/* Hamburger — mobile only */}
+          <button className="titans-hamburger" onClick={()=>setNavOpen(o=>!o)}
+            style={{background:"none",border:"none",cursor:"pointer",padding:"6px 8px",color:BRAND.textPrimary,fontSize:20,lineHeight:1,marginRight:2}}>
+            {navOpen?"✕":"☰"}
+          </button>
+          <TitansLogo size={30}/>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:BRAND.textPrimary,lineHeight:1}}>Enderun Titans</div>
-            <div style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT · POWERED BY SUPABASE</div>
+            <div className="titans-header-sub" style={{fontSize:9,color:BRAND.textSecondary,letterSpacing:"0.08em"}}>BASKETBALL MANAGEMENT · POWERED BY SUPABASE</div>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
-          {freshPlayer&&<span style={{fontSize:12,color:BRAND.textSecondary}}>{freshPlayer.name}</span>}
-          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 14px",fontSize:12}}>Sign Out</button>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{padding:"3px 9px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}22`,color:BRAND.crimsonLight}}>{role}</span>
+          <span className="titans-player-name" style={{fontSize:12,color:BRAND.textSecondary}}>{freshPlayer?.name}</span>
+          <button onClick={handleLogout} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:12}}>Sign Out</button>
         </div>
       </header>
-      <div style={{display:"flex",flex:1}}>
-        <nav style={S.nav}>
+
+      <div style={{display:"flex",flex:1,position:"relative"}}>
+        <nav className={`titans-nav${navOpen?" open":""}`} style={S.nav}>
           <div style={{padding:"6px 18px 12px",fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary}}>
             {isAdmin(role)?"Admin Panel":"Player Portal"}
           </div>
@@ -1886,7 +1912,7 @@ export default function App(){
             </div>
           )}
         </nav>
-        <main style={S.main}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
+        <main className="titans-main" style={S.main}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
       </div>
     </div>
   );
