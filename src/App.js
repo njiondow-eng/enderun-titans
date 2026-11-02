@@ -1228,7 +1228,7 @@ function PlayerDashboard({player,players,setPage}){
   const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
 
   return(
-    <div style={{maxWidth:900}}>
+    <div style={{width:"100%"}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div>
