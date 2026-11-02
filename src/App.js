@@ -61,14 +61,14 @@ const PLAYER_NAV = [
 const S = {
   app:{ background:BRAND.black, minHeight:"100vh", fontFamily:"'Segoe UI',system-ui,sans-serif", color:BRAND.textPrimary, display:"flex", flexDirection:"column" },
   header:{ background:BRAND.charcoal, borderBottom:`1px solid ${BRAND.border}`, padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:60, position:"sticky", top:0, zIndex:50 },
-  nav:{ background:BRAND.charcoal, width:170, minWidth:120, minHeight:"calc(100vh - 60px)", borderRight:`1px solid ${BRAND.border}`, padding:"12px 0", flexShrink:0 },
-  main:{ flex:1, padding:"16px", overflowY:"auto", overflowX:"hidden", background:BRAND.black, minWidth:0 },
+  nav:{ background:BRAND.charcoal, width:210, minHeight:"calc(100vh - 60px)", borderRight:`1px solid ${BRAND.border}`, padding:"12px 0", flexShrink:0 },
+  main:{ flex:1, padding:"24px 28px", overflowY:"auto", background:BRAND.black },
   card:{ background:BRAND.surfaceLight, border:`1px solid ${BRAND.border}`, borderRadius:12, padding:"18px 22px", marginBottom:18 },
   cardTitle:{ fontSize:12, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:BRAND.textSecondary, marginBottom:14 },
   statCard:{ background:BRAND.surfaceLight, border:`1px solid ${BRAND.border}`, borderRadius:10, padding:"16px 18px", textAlign:"center" },
   statVal:{ fontSize:26, fontWeight:700, color:BRAND.gold, lineHeight:1.1 },
   statLabel:{ fontSize:11, color:BRAND.textSecondary, marginTop:4, letterSpacing:"0.05em" },
-  navItem:(a)=>({ display:"flex", alignItems:"center", gap:7, padding:"8px 10px", cursor:"pointer", color:a?BRAND.gold:BRAND.textSecondary, background:a?`${BRAND.crimson}22`:"transparent", borderLeft:a?`3px solid ${BRAND.crimson}`:"3px solid transparent", fontSize:11, fontWeight:a?600:400 }),
+  navItem:(a)=>({ display:"flex", alignItems:"center", gap:10, padding:"9px 18px", cursor:"pointer", color:a?BRAND.gold:BRAND.textSecondary, background:a?`${BRAND.crimson}22`:"transparent", borderLeft:a?`3px solid ${BRAND.crimson}`:"3px solid transparent", fontSize:13, fontWeight:a?600:400 }),
   input:{ background:BRAND.charcoal, border:`1px solid ${BRAND.border}`, borderRadius:8, padding:"8px 12px", color:BRAND.textPrimary, fontSize:13, outline:"none", width:"100%" },
   btn:(v="primary")=>({ padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, border:"none", background:v==="primary"?BRAND.crimson:v==="gold"?BRAND.gold:v==="danger"?"#7f1d1d":v==="green"?"#14532d":BRAND.surfaceLight, color:v==="gold"?BRAND.black:BRAND.textPrimary }),
   table:{ width:"100%", borderCollapse:"collapse" },
@@ -1142,9 +1142,9 @@ function AdminDashboard({players,loading,setPage}){
 }
 
 function PlayerDashboard({player,players,setPage}){
-  const [leagues,setLeagues]=useState([]);
-  const [games,setGames]=useState([]);
   const [practices,setPractices]=useState([]);
+  const [games,setGames]=useState([]);
+  const [leagues,setLeagues]=useState([]);
   const [attendance,setAttendance]=useState([]);
   const [announcements,setAnnouncements]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1152,15 +1152,15 @@ function PlayerDashboard({player,players,setPage}){
   useEffect(()=>{
     const today=new Date(); today.setHours(0,0,0,0);
     Promise.all([
-      supabase.from("leagues").select("*").order("created_at",{ascending:false}),
-      supabase.from("games").select("*").order("date",{ascending:true}),
       supabase.from("practices").select("*").order("date",{ascending:true}),
-      supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(10),
+      supabase.from("games").select("*").order("date",{ascending:true}),
+      supabase.from("leagues").select("*").order("created_at",{ascending:false}),
+      supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
-    ]).then(([l,g,p,a,ann])=>{
-      setLeagues(l.data||[]);
-      setGames(g.data||[]);
+    ]).then(([p,g,l,a,ann])=>{
       setPractices((p.data||[]).filter(x=>new Date(x.date+"T00:00:00")>=today).slice(0,4));
+      setGames(g.data||[]);
+      setLeagues(l.data||[]);
       setAttendance(a.data||[]);
       setAnnouncements(ann.data||[]);
       setLoading(false);
@@ -1170,142 +1170,163 @@ function PlayerDashboard({player,players,setPage}){
   if(loading) return <Spinner/>;
 
   const today=new Date(); today.setHours(0,0,0,0);
-  // W = us > them, L = us < them (only played games)
   const playedGames=games.filter(g=>g.us!=null&&g.them!=null);
   const wins=playedGames.filter(g=>g.us>g.them).length;
   const losses=playedGames.filter(g=>g.us<g.them).length;
+  const upcomingGames=games.filter(g=>new Date(g.date+"T00:00:00")>=today);
 
-  const activePlayers=players.filter(p=>p.status==="Active"&&p.pts_per_game!=null);
-  const avg=k=>activePlayers.length?parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p[k])||0),0)/activePlayers.length).toFixed(1)):0;
-  const teamAvg={pts:avg("pts"),reb:avg("reb"),ast:avg("ast"),fg:avg("fg"),threept:avg("threept")};
+  const activePlayers=players.filter(p=>p.status==="Active"&&p.pts!=null);
+  const teamAvg=activePlayers.length?{
+    pts:parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p.pts)||0),0)/activePlayers.length).toFixed(1)),
+    reb:parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p.reb)||0),0)/activePlayers.length).toFixed(1)),
+    ast:parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p.ast)||0),0)/activePlayers.length).toFixed(1)),
+    fg:parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p.fg)||0),0)/activePlayers.length).toFixed(1)),
+    threept:parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p.threept)||0),0)/activePlayers.length).toFixed(1)),
+  }:{pts:0,reb:0,ast:0,fg:0,threept:0};
 
-  const attRate=attendance.length?Math.round((attendance.filter(a=>a.status==="Present").length/attendance.length)*100):null;
-  const nextPractice=practices[0];
   const ppg=parseFloat(player.pts)||0;
   const rpg=parseFloat(player.reb)||0;
   const apg=parseFloat(player.ast)||0;
+  const fgp=parseFloat(player.fg)||0;
+  const tpp=parseFloat(player.threept)||0;
+
+  const attRate=attendance.length?Math.round((attendance.filter(a=>a.status==="Present").length/attendance.length)*100):null;
+  const nextPractice=practices[0];
   const myRank=activePlayers.filter(p=>parseFloat(p.pts||0)>ppg).length+1;
 
-  const StatRow=({label,mine,team,max})=>{
-    const mPct=Math.min(100,(mine/max)*100);
-    const tPct=Math.min(100,(team/max)*100);
+  const fmtDate=d=>{const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});};
+
+  const Bar=({mine,team,max})=>{
+    const mPct=max>0?Math.min(100,(mine/max)*100):0;
+    const tPct=max>0?Math.min(100,(team/max)*100):0;
     return(
-      <div style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>
-          <span>{label}</span><span style={{color:BRAND.gold,fontWeight:600}}>{mine} <span style={{color:"#888",fontWeight:400}}>/ team avg {team}</span></span>
-        </div>
-        <div style={{position:"relative",height:6,background:"#2a2a2a",borderRadius:3}}>
-          <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${tPct}%`,background:"#444",borderRadius:3}}/>
-          <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${mPct}%`,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,borderRadius:3}}/>
-        </div>
+      <div style={{position:"relative",height:6,background:"#1a1a1a",borderRadius:3,margin:"4px 0 12px"}}>
+        <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${tPct}%`,background:"#333",borderRadius:3}}/>
+        <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${mPct}%`,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,borderRadius:3}}/>
       </div>
     );
   };
 
-  const dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const fmtDate=d=>{const dt=new Date(d);return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});};
+  const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
 
   return(
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-        <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Dashboard</h1>
-        {activePlayers.length>0&&<span style={{fontSize:11,padding:"4px 12px",borderRadius:10,background:`${BRAND.gold}22`,color:BRAND.gold,fontWeight:700}}>#{myRank} Scorer on Team</span>}
+    <div style={{maxWidth:900}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <h1 style={{fontSize:18,fontWeight:700,margin:0}}>Dashboard</h1>
+          <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{player.name}</div>
+        </div>
+        {activePlayers.length>0&&<span style={{fontSize:11,padding:"3px 10px",borderRadius:10,background:`${BRAND.gold}22`,color:BRAND.gold,fontWeight:700,whiteSpace:"nowrap"}}>#{myRank} Scorer</span>}
       </div>
 
-      {/* Quick Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      {/* Quick Stats Row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:14}}>
+        <div style={{...S.card,marginBottom:0,textAlign:"center",padding:"12px 8px"}}>
+          <div style={{fontSize:26,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{ppg.toFixed(1)}</div>
+          <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:4}}>PPG · Points per game</div>
+        </div>
+        <div style={{...S.card,marginBottom:0,textAlign:"center",padding:"12px 8px"}}>
+          <div style={{fontSize:26,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{attRate!=null?`${attRate}%`:"—"}</div>
+          <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:4}}>Attendance ({attendance.length} sessions)</div>
+        </div>
+        <div style={{...S.card,marginBottom:0,textAlign:"center",padding:"12px 8px"}}>
+          <div style={{fontSize:26,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{wins}-{losses}</div>
+          <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:4}}>Team Record W-L</div>
+        </div>
+        <div style={{...S.card,marginBottom:0,textAlign:"center",padding:"12px 8px"}}>
+          <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{nextPractice?fmtDate(nextPractice.date):"—"}</div>
+          <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:4}}>{nextPractice?`${nextPractice.type||"Practice"} · Next`:"No upcoming practice"}</div>
+        </div>
+      </div>
+
+      {/* My Stats vs Team */}
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📊 My Stats vs Team Average</div>
         {[
-          {label:"My PPG",value:ppg.toFixed(1),sub:"points per game"},
-          {label:"Attendance",value:attRate!=null?`${attRate}%`:"—",sub:"last 10 sessions"},
-          {label:"Team Record",value:`${wins}-${losses}`,sub:"W - L"},
-          {label:"Next Practice",value:nextPractice?fmtDate(nextPractice.date):"—",sub:nextPractice?nextPractice.type:"no upcoming"},
-        ].map(c=>(
-          <div key={c.label} style={{...S.card,marginBottom:0,textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:800,color:BRAND.gold}}>{c.value}</div>
-            <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:4}}>{c.label}</div>
-            <div style={{fontSize:10,color:"#555",marginTop:2}}>{c.sub}</div>
+          {label:"PTS",mine:ppg,team:teamAvg.pts,max:Math.max(ppg,teamAvg.pts,20)},
+          {label:"REB",mine:rpg,team:teamAvg.reb,max:Math.max(rpg,teamAvg.reb,15)},
+          {label:"AST",mine:apg,team:teamAvg.ast,max:Math.max(apg,teamAvg.ast,10)},
+          {label:"FG%",mine:fgp,team:teamAvg.fg,max:100},
+          {label:"3PT%",mine:tpp,team:teamAvg.threept,max:100},
+        ].map(({label,mine,team,max})=>(
+          <div key={label}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+              <span style={{color:BRAND.textSecondary,fontWeight:600}}>{label}</span>
+              <span><span style={{color:BRAND.gold,fontWeight:700}}>{mine}</span><span style={{color:"#555",fontSize:11}}> / avg {team}</span></span>
+            </div>
+            <Bar mine={mine} team={team} max={max}/>
           </div>
         ))}
+        <div style={{display:"flex",gap:16,fontSize:10,color:"#555",marginTop:4}}>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:4,borderRadius:2,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,display:"inline-block"}}/>Me</span>
+          <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:4,borderRadius:2,background:"#333",display:"inline-block"}}/>Team avg</span>
+        </div>
       </div>
 
-      {/* Main Grid */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        {/* Stats vs Team */}
-        <div style={{...S.card,marginBottom:0}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>📊 My Stats vs Team Average</div>
-          <StatRow label="PTS" mine={ppg} team={teamAvg.pts} max={Math.max(ppg,teamAvg.pts,20)}/>
-          <StatRow label="REB" mine={rpg} team={teamAvg.reb} max={Math.max(rpg,teamAvg.reb,15)}/>
-          <StatRow label="AST" mine={apg} team={teamAvg.ast} max={Math.max(apg,teamAvg.ast,10)}/>
-          <StatRow label="FG%" mine={parseFloat(player.fg)||0} team={teamAvg.fg} max={100}/>
-          <StatRow label="3PT%" mine={parseFloat(player.threept)||0} team={teamAvg.threept} max={100}/>
-          <div style={{fontSize:10,color:"#555",marginTop:8,display:"flex",gap:12}}>
-            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,display:"inline-block"}}/>Me</span>
-            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:"#444",display:"inline-block"}}/>Team avg</span>
-          </div>
-        </div>
+      {/* Upcoming Practices */}
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏋️ Upcoming Practices</div>
+        {practices.length===0
+          ?<div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming practices scheduled.</div>
+          :practices.map(p=>(
+            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #1a1a1a"}}>
+              <div style={{minWidth:44,textAlign:"center",background:"#1a1040",borderRadius:8,padding:"5px 6px"}}>
+                <div style={{fontSize:9,color:"#a78bfa",fontWeight:600,textTransform:"uppercase"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(p.date+"T00:00:00").getDay()]}</div>
+                <div style={{fontSize:16,color:"#c4b5fd",fontWeight:800}}>{new Date(p.date+"T00:00:00").getDate()}</div>
+              </div>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{p.type||"Practice"}</div>
+                <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.time||""}{p.location?` · ${p.location}`:""}</div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
 
-        {/* Right Column */}
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {/* Upcoming Practices */}
-          <div style={{...S.card,marginBottom:0}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏋️ Upcoming Practices</div>
-            {practices.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming practices scheduled.</div>:
-              practices.map(p=>(
-                <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #1e1e1e"}}>
-                  <div style={{minWidth:42,textAlign:"center",background:"#2a1f5e",borderRadius:8,padding:"4px 6px"}}>
-                    <div style={{fontSize:10,color:"#a78bfa",fontWeight:600}}>{dayNames[new Date(p.date).getDay()]}</div>
-                    <div style={{fontSize:14,color:"#c4b5fd",fontWeight:800}}>{new Date(p.date).getDate()}</div>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:12,fontWeight:600}}>{p.type||"Practice"}</div>
-                    <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.time||""}{p.location?` · ${p.location}`:""}</div>
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-
-          {/* Leagues & Tournaments */}
-          <div style={{...S.card,marginBottom:0}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏆 Leagues & Tournaments</div>
-            {leagues.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>:
-              leagues.slice(0,3).map(lg=>{
-                // games don't have league_id — show all games for context
-                const lgW=playedGames.filter(g=>g.us>g.them).length;
-                const lgL=playedGames.filter(g=>g.us<g.them).length;
-                const next=games.filter(g=>g.date&&new Date(g.date+"T00:00:00")>=today).slice(0,2);
-                return(
-                  <div key={lg.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e1e1e"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontSize:12,fontWeight:700}}>{lg.name}</span>
-                      <span style={{fontSize:11,color:BRAND.gold,fontWeight:600}}>{lgW}W-{lgL}L</span>
+      {/* Leagues & Tournaments */}
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏆 Leagues & Tournaments</div>
+        {leagues.length===0
+          ?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>
+          :leagues.map(lg=>{
+            const next=upcomingGames.slice(0,2);
+            return(
+              <div key={lg.id} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid #1a1a1a"}}>
+                <div style={{fontSize:13,fontWeight:700,color:BRAND.gold,marginBottom:6}}>{lg.name}</div>
+                <div style={{fontSize:12,color:"#888",marginBottom:4}}>Team record: <span style={{color:BRAND.textPrimary,fontWeight:600}}>{wins}W – {losses}L</span></div>
+                {next.length===0
+                  ?<div style={{fontSize:11,color:"#555"}}>No upcoming games</div>
+                  :next.map(g=>(
+                    <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,padding:"5px 0",color:BRAND.textSecondary}}>
+                      <span style={{minWidth:60,color:BRAND.gold,fontWeight:600}}>{fmtDate(g.date)}</span>
+                      <span>vs <strong style={{color:BRAND.textPrimary}}>{g.opp||"TBD"}</strong></span>
+                      {g.venue&&<span style={{fontSize:10,color:"#555"}}>· {g.venue}</span>}
                     </div>
-                    {next.map(g=>(
-                      <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })
-            }
-          </div>
-        </div>
+                  ))
+                }
+              </div>
+            );
+          })
+        }
       </div>
 
       {/* Announcements */}
       {announcements.length>0&&(
         <div style={{...S.card,marginBottom:0}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:700}}>📢 Latest Announcements</div>
+            <div style={{fontSize:13,fontWeight:700}}>📢 Announcements</div>
             <button onClick={()=>setPage("announcements")} style={{background:"none",border:"none",color:BRAND.gold,fontSize:11,cursor:"pointer",fontWeight:600}}>View all →</button>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {announcements.map(a=>(
-              <div key={a.id} style={{background:"#111",borderRadius:8,padding:"10px 12px",borderLeft:`2px solid ${a.type==="Practice"?"#60a5fa":a.type==="Academic"?"#4ade80":a.type==="Social"?"#fbbf24":"#888"}`}}>
-                <div style={{fontSize:10,color:"#888",marginBottom:4}}>{a.type} · {a.date}</div>
-                <div style={{fontSize:12,fontWeight:700,marginBottom:3}}>{a.title}</div>
-                <div style={{fontSize:11,color:BRAND.textSecondary,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{a.body}</div>
+              <div key={a.id} style={{background:"#111",borderRadius:8,padding:"10px 12px",borderLeft:`3px solid ${tcolors[a.type]||"#888"}`}}>
+                <div style={{display:"flex",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:10,color:tcolors[a.type]||"#888",fontWeight:700}}>{a.type}</span>
+                  <span style={{fontSize:10,color:"#555"}}>{a.date}</span>
+                </div>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:3}}>{a.title}</div>
+                <div style={{fontSize:12,color:BRAND.textSecondary,lineHeight:1.5}}>{a.body}</div>
               </div>
             ))}
           </div>
@@ -1315,7 +1336,7 @@ function PlayerDashboard({player,players,setPage}){
   );
 }
 
-// ── PLAYER VIEWS ──
+
 function MyProfile({player,loadPlayers}){
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({phone:player.phone||"",email:player.email||"",height:player.height||"",weight:player.weight||""});
