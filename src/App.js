@@ -1928,8 +1928,6 @@ export default function App(){
   const nav=isAdmin(role)?ADMIN_NAV:PLAYER_NAV;
   const pages=isAdmin(role)?adminPages:playerPages;
 
-  const isMobile=typeof window!=="undefined"&&window.innerWidth<768;
-
   return(
     <MobileCtx.Provider value={isMobile}>
     <div style={S.app}>
