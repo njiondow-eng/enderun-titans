@@ -61,14 +61,14 @@ const PLAYER_NAV = [
 const S = {
   app:{ background:BRAND.black, minHeight:"100vh", fontFamily:"'Segoe UI',system-ui,sans-serif", color:BRAND.textPrimary, display:"flex", flexDirection:"column" },
   header:{ background:BRAND.charcoal, borderBottom:`1px solid ${BRAND.border}`, padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:60, position:"sticky", top:0, zIndex:50 },
-  nav:{ background:BRAND.charcoal, width:210, minHeight:"calc(100vh - 60px)", borderRight:`1px solid ${BRAND.border}`, padding:"12px 0", flexShrink:0 },
-  main:{ flex:1, padding:"24px 28px", overflowY:"auto", background:BRAND.black },
+  nav:{ background:BRAND.charcoal, width:170, minWidth:120, minHeight:"calc(100vh - 60px)", borderRight:`1px solid ${BRAND.border}`, padding:"12px 0", flexShrink:0 },
+  main:{ flex:1, padding:"16px", overflowY:"auto", overflowX:"hidden", background:BRAND.black, minWidth:0 },
   card:{ background:BRAND.surfaceLight, border:`1px solid ${BRAND.border}`, borderRadius:12, padding:"18px 22px", marginBottom:18 },
   cardTitle:{ fontSize:12, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:BRAND.textSecondary, marginBottom:14 },
   statCard:{ background:BRAND.surfaceLight, border:`1px solid ${BRAND.border}`, borderRadius:10, padding:"16px 18px", textAlign:"center" },
   statVal:{ fontSize:26, fontWeight:700, color:BRAND.gold, lineHeight:1.1 },
   statLabel:{ fontSize:11, color:BRAND.textSecondary, marginTop:4, letterSpacing:"0.05em" },
-  navItem:(a)=>({ display:"flex", alignItems:"center", gap:10, padding:"9px 18px", cursor:"pointer", color:a?BRAND.gold:BRAND.textSecondary, background:a?`${BRAND.crimson}22`:"transparent", borderLeft:a?`3px solid ${BRAND.crimson}`:"3px solid transparent", fontSize:13, fontWeight:a?600:400 }),
+  navItem:(a)=>({ display:"flex", alignItems:"center", gap:7, padding:"8px 10px", cursor:"pointer", color:a?BRAND.gold:BRAND.textSecondary, background:a?`${BRAND.crimson}22`:"transparent", borderLeft:a?`3px solid ${BRAND.crimson}`:"3px solid transparent", fontSize:11, fontWeight:a?600:400 }),
   input:{ background:BRAND.charcoal, border:`1px solid ${BRAND.border}`, borderRadius:8, padding:"8px 12px", color:BRAND.textPrimary, fontSize:13, outline:"none", width:"100%" },
   btn:(v="primary")=>({ padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, border:"none", background:v==="primary"?BRAND.crimson:v==="gold"?BRAND.gold:v==="danger"?"#7f1d1d":v==="green"?"#14532d":BRAND.surfaceLight, color:v==="gold"?BRAND.black:BRAND.textPrimary }),
   table:{ width:"100%", borderCollapse:"collapse" },
@@ -1177,12 +1177,14 @@ function PlayerDashboard({player,players,setPage}){
 
   const activePlayers=players.filter(p=>p.status==="Active"&&p.pts_per_game!=null);
   const avg=k=>activePlayers.length?parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p[k])||0),0)/activePlayers.length).toFixed(1)):0;
-  const teamAvg={pts:avg("pts_per_game"),reb:avg("reb_per_game"),ast:avg("ast_per_game"),fg:avg("fg_pct"),threept:avg("three_pt_pct")};
+  const teamAvg={pts:avg("pts"),reb:avg("reb"),ast:avg("ast"),fg:avg("fg"),threept:avg("threept")};
 
   const attRate=attendance.length?Math.round((attendance.filter(a=>a.status==="Present").length/attendance.length)*100):null;
   const nextPractice=practices[0];
-  const ppg=parseFloat(player.pts_per_game)||0;
-  const myRank=activePlayers.filter(p=>parseFloat(p.pts_per_game||0)>ppg).length+1;
+  const ppg=parseFloat(player.pts)||0;
+  const rpg=parseFloat(player.reb)||0;
+  const apg=parseFloat(player.ast)||0;
+  const myRank=activePlayers.filter(p=>parseFloat(p.pts||0)>ppg).length+1;
 
   const StatRow=({label,mine,team,max})=>{
     const mPct=Math.min(100,(mine/max)*100);
@@ -1211,7 +1213,7 @@ function PlayerDashboard({player,players,setPage}){
       </div>
 
       {/* Quick Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
         {[
           {label:"My PPG",value:ppg.toFixed(1),sub:"points per game"},
           {label:"Attendance",value:attRate!=null?`${attRate}%`:"—",sub:"last 10 sessions"},
@@ -1227,15 +1229,15 @@ function PlayerDashboard({player,players,setPage}){
       </div>
 
       {/* Main Grid */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         {/* Stats vs Team */}
         <div style={{...S.card,marginBottom:0}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>📊 My Stats vs Team Average</div>
           <StatRow label="PTS" mine={ppg} team={teamAvg.pts} max={Math.max(ppg,teamAvg.pts,20)}/>
-          <StatRow label="REB" mine={parseFloat(player.reb_per_game)||0} team={teamAvg.reb} max={Math.max(parseFloat(player.reb_per_game)||0,teamAvg.reb,15)}/>
-          <StatRow label="AST" mine={parseFloat(player.ast_per_game)||0} team={teamAvg.ast} max={Math.max(parseFloat(player.ast_per_game)||0,teamAvg.ast,10)}/>
-          <StatRow label="FG%" mine={parseFloat(player.fg_pct)||0} team={teamAvg.fg} max={100}/>
-          <StatRow label="3PT%" mine={parseFloat(player.three_pt_pct)||0} team={teamAvg.threept} max={100}/>
+          <StatRow label="REB" mine={rpg} team={teamAvg.reb} max={Math.max(rpg,teamAvg.reb,15)}/>
+          <StatRow label="AST" mine={apg} team={teamAvg.ast} max={Math.max(apg,teamAvg.ast,10)}/>
+          <StatRow label="FG%" mine={parseFloat(player.fg)||0} team={teamAvg.fg} max={100}/>
+          <StatRow label="3PT%" mine={parseFloat(player.threept)||0} team={teamAvg.threept} max={100}/>
           <div style={{fontSize:10,color:"#555",marginTop:8,display:"flex",gap:12}}>
             <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,display:"inline-block"}}/>Me</span>
             <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:"#444",display:"inline-block"}}/>Team avg</span>
@@ -1269,18 +1271,20 @@ function PlayerDashboard({player,players,setPage}){
             {leagues.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>:
               leagues.slice(0,3).map(lg=>{
                 // games don't have league_id — show all games for context
+                const lgW=playedGames.filter(g=>g.us>g.them).length;
+                const lgL=playedGames.filter(g=>g.us<g.them).length;
                 const next=games.filter(g=>g.date&&new Date(g.date+"T00:00:00")>=today).slice(0,2);
                 return(
                   <div key={lg.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e1e1e"}}>
-                    <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:BRAND.gold}}>{lg.name}</div>
-                    {next.length===0
-                      ?<div style={{fontSize:11,color:"#555"}}>No upcoming games</div>
-                      :next.map(g=>(
-                        <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center",marginBottom:2}}>
-                          <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
-                        </div>
-                      ))
-                    }
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontSize:12,fontWeight:700}}>{lg.name}</span>
+                      <span style={{fontSize:11,color:BRAND.gold,fontWeight:600}}>{lgW}W-{lgL}L</span>
+                    </div>
+                    {next.map(g=>(
+                      <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
+                      </div>
+                    ))}
                   </div>
                 );
               })
