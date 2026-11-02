@@ -1150,8 +1150,9 @@ function PlayerDashboard({player,players,setPage}){
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
+    const today=new Date(); today.setHours(0,0,0,0);
     Promise.all([
-      supabase.from("leagues").select("*,games(*)").order("created_at",{ascending:false}),
+      supabase.from("leagues").select("*").order("created_at",{ascending:false}),
       supabase.from("games").select("*").order("date",{ascending:true}),
       supabase.from("practices").select("*").order("date",{ascending:true}),
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(10),
@@ -1159,8 +1160,7 @@ function PlayerDashboard({player,players,setPage}){
     ]).then(([l,g,p,a,ann])=>{
       setLeagues(l.data||[]);
       setGames(g.data||[]);
-      const today=new Date(); today.setHours(0,0,0,0);
-      setPractices((p.data||[]).filter(x=>new Date(x.date)>=today).slice(0,4));
+      setPractices((p.data||[]).filter(x=>new Date(x.date+"T00:00:00")>=today).slice(0,4));
       setAttendance(a.data||[]);
       setAnnouncements(ann.data||[]);
       setLoading(false);
@@ -1170,9 +1170,10 @@ function PlayerDashboard({player,players,setPage}){
   if(loading) return <Spinner/>;
 
   const today=new Date(); today.setHours(0,0,0,0);
-  const upcomingGames=games.filter(g=>new Date(g.date)>=today);
-  const wins=games.filter(g=>g.result==="W").length;
-  const losses=games.filter(g=>g.result==="L").length;
+  // W = us > them, L = us < them (only played games)
+  const playedGames=games.filter(g=>g.us!=null&&g.them!=null);
+  const wins=playedGames.filter(g=>g.us>g.them).length;
+  const losses=playedGames.filter(g=>g.us<g.them).length;
 
   const activePlayers=players.filter(p=>p.status==="Active"&&p.pts_per_game!=null);
   const avg=k=>activePlayers.length?parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p[k])||0),0)/activePlayers.length).toFixed(1)):0;
@@ -1267,10 +1268,10 @@ function PlayerDashboard({player,players,setPage}){
             <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏆 Leagues & Tournaments</div>
             {leagues.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>:
               leagues.slice(0,3).map(lg=>{
-                const lgGames=games.filter(g=>g.league_id===lg.id);
-                const lgW=lgGames.filter(g=>g.result==="W").length;
-                const lgL=lgGames.filter(g=>g.result==="L").length;
-                const next=lgGames.filter(g=>g.date&&new Date(g.date)>=today).slice(0,2);
+                // games don't have league_id — show all games for context
+                const lgW=playedGames.filter(g=>g.us>g.them).length;
+                const lgL=playedGames.filter(g=>g.us<g.them).length;
+                const next=games.filter(g=>g.date&&new Date(g.date+"T00:00:00")>=today).slice(0,2);
                 return(
                   <div key={lg.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e1e1e"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -1279,7 +1280,7 @@ function PlayerDashboard({player,players,setPage}){
                     </div>
                     {next.map(g=>(
                       <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opponent||"TBD"}{g.location?` · ${g.location}`:""}
+                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
                       </div>
                     ))}
                   </div>
