@@ -528,7 +528,7 @@ function Practice(){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({date:"",time:"6:00 AM",type:"Conditioning",location:"Enderun Gym",objectives:"",notes:""});
+  const [form,setForm]=useState({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});
   const [saving,setSaving]=useState(false);
 
   useEffect(()=>{ load(); },[]);
@@ -550,7 +550,7 @@ function Practice(){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Practice Scheduling</h1>
-        <button onClick={()=>{setForm({date:"",time:"6:00 AM",type:"Conditioning",location:"Enderun Gym",objectives:"",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Session</button>
+        <button onClick={()=>{setForm({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Session</button>
       </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
@@ -584,7 +584,7 @@ function Practice(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
             <div style={{gridColumn:"1/-1"}}><FormField form={form} setForm={setForm} label="Date *" field="date"/></div>
             <FormField form={form} setForm={setForm} label="Time" field="time"/>
-            <FormField form={form} setForm={setForm} label="Type" field="type" opts={["Conditioning","Skill Work","Film Session","Full Scrimmage","Shoot-Around","Strength & Conditioning","Team Meeting"]}/>
+            <FormField form={form} setForm={setForm} label="Type" field="type" opts={["Regular Practice","Skill Work","Film Session","Full Scrimmage","Shoot-Around","Strength & Conditioning","Team Meeting"]}/>
             <FormField form={form} setForm={setForm} label="Location" field="location"/>
           </div>
           <FormField form={form} setForm={setForm} label="Objectives" field="objectives"/>
