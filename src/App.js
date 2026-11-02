@@ -1827,12 +1827,15 @@ export default function App(){
   const [loggedIn,setLoggedIn]=useState(false);
   const [role,setRole]=useState(null);
   const [currentPlayer,setCurrentPlayer]=useState(null);
-  const [page,setPage]=useState("dashboard");
+  const [page,setPage]=useState(()=>{try{return localStorage.getItem("titans_page")||"dashboard";}catch{return"dashboard";}});
   const [navOpen,setNavOpen]=useState(false);
   const [players,setPlayers]=useState([]);
   const [playersLoading,setPlayersLoading]=useState(true);
   const [seeded,setSeeded]=useState(false);
   const [authLoading,setAuthLoading]=useState(true);
+
+  // Persist active page across refreshes
+  useEffect(()=>{try{localStorage.setItem("titans_page",page);}catch{}}, [page]);
 
   const loadPlayers=async()=>{
     setPlayersLoading(true);
@@ -1886,7 +1889,7 @@ export default function App(){
   },[loggedIn]);
 
   const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"playerdashboard"); };
-  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
+  const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); try{localStorage.removeItem("titans_page");}catch{} };
 
   if(authLoading) return(
     <div style={{background:"#0D0D0D",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
