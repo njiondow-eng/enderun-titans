@@ -48,6 +48,7 @@ const ADMIN_NAV = [
 ];
 
 const PLAYER_NAV = [
+  { id:"playerdashboard", label:"Dashboard", icon:"🏠" },
   { id:"myprofile", label:"My Profile", icon:"👤" },
   { id:"mystats", label:"My Stats", icon:"📊" },
   { id:"myattendance", label:"My Attendance", icon:"✅" },
@@ -124,7 +125,7 @@ const Spinner=()=>(
   </div>
 );
 
-const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,photo:""};
+const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
 
 // ── ROSTER ──
 function Roster({players,loadPlayers,loading}){
@@ -293,6 +294,7 @@ function Roster({players,loadPlayers,loading}){
             <FormField form={form} setForm={setForm} label="STL" field="stl" type="number"/>
             <FormField form={form} setForm={setForm} label="BLK" field="blk" type="number"/>
             <FormField form={form} setForm={setForm} label="TO" field="to_" type="number"/>
+            <FormField form={form} setForm={setForm} label="+/-" field="plus_minus" type="number"/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
             <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
@@ -376,7 +378,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
 function Statistics({players}){
   const [sort,setSort]=useState("pts");
   const sorted=[...players].sort((a,b)=>b[sort]-a[sort]);
-  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"}];
+  const cols=[{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"threept",l:"3PT%"},{k:"ft",l:"FT%"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"plus_minus",l:"+/-"}];
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Statistics</h1>
@@ -395,11 +397,16 @@ function Statistics({players}){
                 <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/><span style={{fontWeight:600}}>{p.name}</span></div></td>
                 <td style={{...S.td,color:BRAND.textSecondary}}>{p.pos}</td>
                 <td style={S.td}>{p.gp}</td>
-                {cols.map(c=>(
-                  <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:sort===c.k?BRAND.gold:BRAND.textPrimary}}>
-                    {c.k==="fg"||c.k==="threept"||c.k==="ft"?`${p[c.k]}%`:p[c.k]}
-                  </td>
-                ))}
+                {cols.map(c=>{
+                  const val=p[c.k]??0;
+                  const isPM=c.k==="plus_minus";
+                  const pmColor=isPM?(val>0?"#4ade80":val<0?"#f87171":BRAND.textSecondary):null;
+                  return(
+                    <td key={c.k} style={{...S.td,fontWeight:sort===c.k?700:400,color:isPM?pmColor:(sort===c.k?BRAND.gold:BRAND.textPrimary)}}>
+                      {isPM?(val>0?`+${val}`:val):(c.k==="fg"||c.k==="threept"||c.k==="ft"?`${val}%`:val)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}</tbody>
           </table>
@@ -1134,6 +1141,177 @@ function AdminDashboard({players,loading,setPage}){
   );
 }
 
+function PlayerDashboard({player,players,setPage}){
+  const [leagues,setLeagues]=useState([]);
+  const [games,setGames]=useState([]);
+  const [practices,setPractices]=useState([]);
+  const [attendance,setAttendance]=useState([]);
+  const [announcements,setAnnouncements]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("leagues").select("*,games(*)").order("created_at",{ascending:false}),
+      supabase.from("games").select("*").order("date",{ascending:true}),
+      supabase.from("practices").select("*").order("date",{ascending:true}),
+      supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(10),
+      supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
+    ]).then(([l,g,p,a,ann])=>{
+      setLeagues(l.data||[]);
+      setGames(g.data||[]);
+      const today=new Date(); today.setHours(0,0,0,0);
+      setPractices((p.data||[]).filter(x=>new Date(x.date)>=today).slice(0,4));
+      setAttendance(a.data||[]);
+      setAnnouncements(ann.data||[]);
+      setLoading(false);
+    });
+  },[player.id]);
+
+  if(loading) return <Spinner/>;
+
+  const today=new Date(); today.setHours(0,0,0,0);
+  const upcomingGames=games.filter(g=>new Date(g.date)>=today);
+  const wins=games.filter(g=>g.result==="W").length;
+  const losses=games.filter(g=>g.result==="L").length;
+
+  const activePlayers=players.filter(p=>p.status==="Active"&&p.pts_per_game!=null);
+  const avg=k=>activePlayers.length?parseFloat((activePlayers.reduce((s,p)=>s+(parseFloat(p[k])||0),0)/activePlayers.length).toFixed(1)):0;
+  const teamAvg={pts:avg("pts_per_game"),reb:avg("reb_per_game"),ast:avg("ast_per_game"),fg:avg("fg_pct"),threept:avg("three_pt_pct")};
+
+  const attRate=attendance.length?Math.round((attendance.filter(a=>a.status==="Present").length/attendance.length)*100):null;
+  const nextPractice=practices[0];
+  const ppg=parseFloat(player.pts_per_game)||0;
+  const myRank=activePlayers.filter(p=>parseFloat(p.pts_per_game||0)>ppg).length+1;
+
+  const StatRow=({label,mine,team,max})=>{
+    const mPct=Math.min(100,(mine/max)*100);
+    const tPct=Math.min(100,(team/max)*100);
+    return(
+      <div style={{marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>
+          <span>{label}</span><span style={{color:BRAND.gold,fontWeight:600}}>{mine} <span style={{color:"#888",fontWeight:400}}>/ team avg {team}</span></span>
+        </div>
+        <div style={{position:"relative",height:6,background:"#2a2a2a",borderRadius:3}}>
+          <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${tPct}%`,background:"#444",borderRadius:3}}/>
+          <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${mPct}%`,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,borderRadius:3}}/>
+        </div>
+      </div>
+    );
+  };
+
+  const dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const fmtDate=d=>{const dt=new Date(d);return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});};
+
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Dashboard</h1>
+        {activePlayers.length>0&&<span style={{fontSize:11,padding:"4px 12px",borderRadius:10,background:`${BRAND.gold}22`,color:BRAND.gold,fontWeight:700}}>#{myRank} Scorer on Team</span>}
+      </div>
+
+      {/* Quick Cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+        {[
+          {label:"My PPG",value:ppg.toFixed(1),sub:"points per game"},
+          {label:"Attendance",value:attRate!=null?`${attRate}%`:"—",sub:"last 10 sessions"},
+          {label:"Team Record",value:`${wins}-${losses}`,sub:"W - L"},
+          {label:"Next Practice",value:nextPractice?fmtDate(nextPractice.date):"—",sub:nextPractice?nextPractice.type:"no upcoming"},
+        ].map(c=>(
+          <div key={c.label} style={{...S.card,marginBottom:0,textAlign:"center"}}>
+            <div style={{fontSize:22,fontWeight:800,color:BRAND.gold}}>{c.value}</div>
+            <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:4}}>{c.label}</div>
+            <div style={{fontSize:10,color:"#555",marginTop:2}}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Grid */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        {/* Stats vs Team */}
+        <div style={{...S.card,marginBottom:0}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>📊 My Stats vs Team Average</div>
+          <StatRow label="PTS" mine={ppg} team={teamAvg.pts} max={Math.max(ppg,teamAvg.pts,20)}/>
+          <StatRow label="REB" mine={parseFloat(player.reb_per_game)||0} team={teamAvg.reb} max={Math.max(parseFloat(player.reb_per_game)||0,teamAvg.reb,15)}/>
+          <StatRow label="AST" mine={parseFloat(player.ast_per_game)||0} team={teamAvg.ast} max={Math.max(parseFloat(player.ast_per_game)||0,teamAvg.ast,10)}/>
+          <StatRow label="FG%" mine={parseFloat(player.fg_pct)||0} team={teamAvg.fg} max={100}/>
+          <StatRow label="3PT%" mine={parseFloat(player.three_pt_pct)||0} team={teamAvg.threept} max={100}/>
+          <div style={{fontSize:10,color:"#555",marginTop:8,display:"flex",gap:12}}>
+            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:`linear-gradient(90deg,${BRAND.crimson},${BRAND.gold})`,display:"inline-block"}}/>Me</span>
+            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:8,height:4,borderRadius:2,background:"#444",display:"inline-block"}}/>Team avg</span>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {/* Upcoming Practices */}
+          <div style={{...S.card,marginBottom:0}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏋️ Upcoming Practices</div>
+            {practices.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming practices scheduled.</div>:
+              practices.map(p=>(
+                <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid #1e1e1e"}}>
+                  <div style={{minWidth:42,textAlign:"center",background:"#2a1f5e",borderRadius:8,padding:"4px 6px"}}>
+                    <div style={{fontSize:10,color:"#a78bfa",fontWeight:600}}>{dayNames[new Date(p.date).getDay()]}</div>
+                    <div style={{fontSize:14,color:"#c4b5fd",fontWeight:800}}>{new Date(p.date).getDate()}</div>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:600}}>{p.type||"Practice"}</div>
+                    <div style={{fontSize:11,color:BRAND.textSecondary}}>{p.time||""}{p.location?` · ${p.location}`:""}</div>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+
+          {/* Leagues & Tournaments */}
+          <div style={{...S.card,marginBottom:0}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>🏆 Leagues & Tournaments</div>
+            {leagues.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>:
+              leagues.slice(0,3).map(lg=>{
+                const lgGames=games.filter(g=>g.league_id===lg.id);
+                const lgW=lgGames.filter(g=>g.result==="W").length;
+                const lgL=lgGames.filter(g=>g.result==="L").length;
+                const next=lgGames.filter(g=>g.date&&new Date(g.date)>=today).slice(0,2);
+                return(
+                  <div key={lg.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e1e1e"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontSize:12,fontWeight:700}}>{lg.name}</span>
+                      <span style={{fontSize:11,color:BRAND.gold,fontWeight:600}}>{lgW}W-{lgL}L</span>
+                    </div>
+                    {next.map(g=>(
+                      <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opponent||"TBD"}{g.location?` · ${g.location}`:""}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            }
+          </div>
+        </div>
+      </div>
+
+      {/* Announcements */}
+      {announcements.length>0&&(
+        <div style={{...S.card,marginBottom:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:700}}>📢 Latest Announcements</div>
+            <button onClick={()=>setPage("announcements")} style={{background:"none",border:"none",color:BRAND.gold,fontSize:11,cursor:"pointer",fontWeight:600}}>View all →</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {announcements.map(a=>(
+              <div key={a.id} style={{background:"#111",borderRadius:8,padding:"10px 12px",borderLeft:`2px solid ${a.type==="Practice"?"#60a5fa":a.type==="Academic"?"#4ade80":a.type==="Social"?"#fbbf24":"#888"}`}}>
+                <div style={{fontSize:10,color:"#888",marginBottom:4}}>{a.type} · {a.date}</div>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:3}}>{a.title}</div>
+                <div style={{fontSize:11,color:BRAND.textSecondary,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{a.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── PLAYER VIEWS ──
 function MyProfile({player,loadPlayers}){
   const [editing,setEditing]=useState(false);
@@ -1433,51 +1611,19 @@ function PlayerSchedule(){
 function PlayerAnnouncements(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [newCount,setNewCount]=useState(0);
   const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
   const colors={Practice:"#1e3a5f",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
-
-  const load=async()=>{
-    const{data}=await supabase.from("announcements").select("*").order("created_at",{ascending:false});
-    if(data) setItems(data);
-    setLoading(false);
-  };
-
-  useEffect(()=>{
-    load();
-    // Realtime subscription — updates instantly when coach posts
-    const channel=supabase.channel("announcements-player")
-      .on("postgres_changes",{event:"*",schema:"public",table:"announcements"},payload=>{
-        if(payload.eventType==="INSERT"){
-          setItems(prev=>[payload.new,...prev]);
-          setNewCount(n=>n+1);
-        } else if(payload.eventType==="DELETE"){
-          setItems(prev=>prev.filter(a=>a.id!==payload.old.id));
-        } else if(payload.eventType==="UPDATE"){
-          setItems(prev=>prev.map(a=>a.id===payload.new.id?payload.new:a));
-        }
-      }).subscribe();
-    return()=>{ supabase.removeChannel(channel); };
-  },[]);
-
+  useEffect(()=>{ supabase.from("announcements").select("*").order("created_at",{ascending:false}).then(({data})=>{ if(data)setItems(data); setLoading(false); }); },[]);
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Announcements</h1>
-        {newCount>0&&<span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${BRAND.crimson}33`,color:"#f87171"}}>{newCount} new</span>}
-        <span style={{marginLeft:"auto",fontSize:11,color:"#4ade80",display:"flex",alignItems:"center",gap:5}}>
-          <span style={{width:6,height:6,borderRadius:"50%",background:"#4ade80",display:"inline-block"}}/>Live
-        </span>
-      </div>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Announcements</h1>
       {loading?<Spinner/>:items.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements yet.</div>:(
         <div style={{display:"grid",gap:12}}>
-          {items.map((a,idx)=>(
-            <div key={a.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`,position:"relative",overflow:"hidden"}}>
-              {idx===0&&newCount>0&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#dc2626,#d4a017)"}}/>}
-              <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+          {items.map(a=>(
+            <div key={a.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`}}>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
                 <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:colors[a.type]||"#222",color:tcolors[a.type]||"#aaa"}}>{a.type}</span>
                 <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date}</span>
-                {idx===0&&newCount>0&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:6,background:"rgba(212,160,23,0.13)",color:"#d4a017",fontWeight:600,marginLeft:"auto"}}>✨ New</span>}
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
               <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
@@ -1577,7 +1723,7 @@ export default function App(){
           playerData=pl;
         }
         setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
-        setPage(isAdmin(r)?"dashboard":"myprofile");
+        setPage(isAdmin(r)?"dashboard":"playerdashboard");
         return true;
       }catch(e){ return false; }
     };
@@ -1605,7 +1751,7 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"myprofile"); };
+  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"playerdashboard"); };
   const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); };
 
   if(authLoading) return(
@@ -1635,6 +1781,7 @@ export default function App(){
   };
 
   const playerPages={
+    playerdashboard:<PlayerDashboard player={freshPlayer||{}} players={players} setPage={setPage}/>,
     myprofile:<MyProfile player={freshPlayer||{}} loadPlayers={loadPlayers}/>,
     mystats:<MyStats player={freshPlayer||{}}/>,
     myattendance:<MyAttendance player={freshPlayer||{}}/>,
@@ -1669,10 +1816,10 @@ export default function App(){
             {isAdmin(role)?"Admin Panel":"Player Portal"}
           </div>
           {nav.map(item=>(
-            <button key={item.id} onClick={()=>setPage(item.id)} style={{...S.navItem(page===item.id),border:"none",width:"100%",textAlign:"left",background:page===item.id?`${BRAND.crimson}22`:"transparent"}}>
+            <div key={item.id} onClick={()=>setPage(item.id)} style={S.navItem(page===item.id)}>
               <span style={{fontSize:15}}>{item.icon}</span>
               <span>{item.label}</span>
-            </button>
+            </div>
           ))}
           {isAdmin(role)&&!playersLoading&&(
             <div style={{padding:"16px 16px 8px",marginTop:10,borderTop:`1px solid ${BRAND.border}`}}>
