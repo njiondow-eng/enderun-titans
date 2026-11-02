@@ -1,38 +1,49 @@
-.App {
-  text-align: center;
+/* Spinner animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* ── Responsive overrides ───────────────────────────── */
+
+/* Stat grids: 4-col → 2-col → 1-col */
+@media (max-width: 900px) {
+  .stat-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 480px) {
+  .stat-grid-4 { grid-template-columns: 1fr !important; }
+  .stat-grid-2 { grid-template-columns: 1fr !important; }
+  .stat-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
+/* Card player detail: 2-col sidebar → stacked */
+@media (max-width: 768px) {
+  .detail-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Tables: allow horizontal scroll on small screens */
+@media (max-width: 768px) {
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll table { min-width: 540px; }
+}
+
+/* Modal: full-width on mobile */
+@media (max-width: 560px) {
+  .modal-inner {
+    width: 94vw !important;
+    max-width: 94vw !important;
+    padding: 18px !important;
   }
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+/* Player dashboard stat bars */
+@media (max-width: 600px) {
+  .player-hero { flex-direction: column !important; gap: 12px !important; }
+  .player-hero-stats { justify-content: center !important; }
 }
 
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Header: tighten on small screens */
+@media (max-width: 480px) {
+  .header-role-label { display: none; }
+  .header-player-name { display: none; }
 }

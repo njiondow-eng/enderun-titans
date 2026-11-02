@@ -1,5 +1,19 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, createContext, useContext } from "react";
+import "./App.css";
+
+// Responsive hook
+function useIsMobile(breakpoint=768){
+  const [isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<breakpoint);
+  useEffect(()=>{
+    const handler=()=>setIsMobile(window.innerWidth<breakpoint);
+    window.addEventListener("resize",handler);
+    return()=>window.removeEventListener("resize",handler);
+  },[breakpoint]);
+  return isMobile;
+}
+const MobileCtx=createContext(false);
+const useMobile=()=>useContext(MobileCtx);
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts";
 import { supabase } from "./supabaseClient";
 import Playbook from "./Playbook";
@@ -307,6 +321,7 @@ function Roster({players,loadPlayers,loading}){
 }
 
 function AdminPlayerProfile({player:p,onBack,onEdit}){
+  const mob=useMobile();
   const radar=[
     {sub:"Scoring",val:Math.min(100,Math.round(p.pts*4.5))},{sub:"Rebounding",val:Math.min(100,Math.round(p.reb*8))},
     {sub:"Playmaking",val:Math.min(100,Math.round(p.ast*9))},{sub:"Defense",val:Math.min(100,Math.round(((p.stl||0)+(p.blk||0))*20))},
@@ -318,7 +333,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
         <button onClick={onBack} style={S.btn("secondary")}>← Back</button>
         <button onClick={onEdit} style={S.btn("gold")}>✏️ Edit Profile</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:20}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"280px 1fr",gap:20}}>
         <div style={S.card}>
           <div style={{textAlign:"center"}}>
             <Avatar initials={p.photo||"??"} size={72} photoUrl={p.photo_url||null}/>
@@ -349,7 +364,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
           </div>
         </div>
         <div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:10,marginBottom:16}}>
             {[["PTS",p.pts,"ppg"],["REB",p.reb,"rpg"],["AST",p.ast,"apg"],["FG%",`${p.fg}%`,""],["3PT%",`${p.threept}%`,""],["FT%",`${p.ft}%`,""]].map(([l,v,s])=>(
               <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l} {s}</div></div>
             ))}
@@ -364,7 +379,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
               </RadarChart>
             </ResponsiveContainer>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:10}}>
             {[["GP",p.gp],["STL",p.stl],["BLK",p.blk],["TO",p.to_]].map(([l,v])=>(
               <div key={l} style={S.statCard}><div style={{...S.statVal,fontSize:20}}>{v}</div><div style={S.statLabel}>{l}</div></div>
             ))}
@@ -417,6 +432,7 @@ function Statistics({players}){
 }
 
 function AdminAttendance({players}){
+  const mob=useMobile();
   const [marks,setMarks]=useState(()=>Object.fromEntries(players.map(p=>[p.id,"Present"])));
   const [session,setSession]=useState({date:new Date().toISOString().split("T")[0],type:"Practice"});
   const [history,setHistory]=useState([]);
@@ -443,7 +459,7 @@ function AdminAttendance({players}){
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Attendance Management</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:18}}>
         {[["Total",players.length],["Present",players.filter(p=>marks[p.id]==="Present").length],["Late",players.filter(p=>marks[p.id]==="Late").length],["Absent",players.filter(p=>marks[p.id]==="Absent").length]].map(([l,v])=>(
           <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div></div>
         ))}
@@ -907,6 +923,7 @@ function Announcements(){
 }
 
 function AdminDashboard({players,loading,setPage}){
+  const mob=useMobile();
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
   const [practices,setPractices]=useState([]);
@@ -973,7 +990,7 @@ function AdminDashboard({players,loading,setPage}){
       </div>
 
       {/* Team Stats Row */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:20}}>
         {players.length>0&&[
           {l:"Scoring Leader",v:[...players].sort((a,b)=>b.pts-a.pts)[0]?.pts,name:[...players].sort((a,b)=>b.pts-a.pts)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"PPG"},
           {l:"Rebounding Leader",v:[...players].sort((a,b)=>b.reb-a.reb)[0]?.reb,name:[...players].sort((a,b)=>b.reb-a.reb)[0]?.name?.split(" ").slice(0,2).join(" "),unit:"RPG"},
@@ -990,7 +1007,7 @@ function AdminDashboard({players,loading,setPage}){
       </div>
 
       {/* Main Dashboard Cards Grid */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Roster Card */}
         <QuickCard icon="👥" title="Roster" value={players.filter(p=>p.status==="Active").length} sub={`${players.length} total · ${injured} injured`} color={BRAND.crimson} onClick={()=>setPage("roster")}>
@@ -1052,7 +1069,7 @@ function AdminDashboard({players,loading,setPage}){
         </QuickCard>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:16,marginBottom:16}}>
 
         {/* Attendance Card */}
         <QuickCard icon="✅" title="Attendance" value={attRate!==null?`${attRate}%`:"—"} sub={attRate!==null?`Today · ${todayAtt.length} records`:"No session today"} color="#4ade80" onClick={()=>setPage("attendance")}>
@@ -1142,6 +1159,7 @@ function AdminDashboard({players,loading,setPage}){
 }
 
 function PlayerDashboard({player,players,setPage}){
+  const mob=useMobile();
   const [practices,setPractices]=useState([]);
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
@@ -1356,6 +1374,7 @@ function PlayerDashboard({player,players,setPage}){
 
 
 function MyProfile({player,loadPlayers}){
+  const mob=useMobile();
   const [editing,setEditing]=useState(false);
   const [form,setForm]=useState({phone:player.phone||"",email:player.email||"",height:player.height||"",weight:player.weight||""});
   const [saving,setSaving]=useState(false);
@@ -1429,7 +1448,7 @@ function MyProfile({player,loadPlayers}){
           </div>
         </div>
       ):(
-        <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:20}}>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"260px 1fr",gap:20}}>
           <div style={S.card}>
             <div style={{textAlign:"center"}}>
               <Avatar initials={p.photo||"??"} size={72} color={BRAND.gold} photoUrl={p.photo_url||null}/>
@@ -1452,7 +1471,7 @@ function MyProfile({player,loadPlayers}){
             </div>
           </div>
           <div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:10}}>
               {[["PTS",p.pts,"ppg"],["REB",p.reb,"rpg"],["AST",p.ast,"apg"],["FG%",`${p.fg}%`,""],["3PT%",`${p.threept}%`,""],["FT%",`${p.ft}%`,""]].map(([l,v,s])=>(
                 <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l} {s}</div></div>
               ))}
@@ -1465,15 +1484,16 @@ function MyProfile({player,loadPlayers}){
 }
 
 function MyStats({player:p}){
+  const mob=useMobile();
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>My Statistics</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:12,marginBottom:18}}>
         {[["PTS",p.pts,"per game"],["REB",p.reb,"per game"],["AST",p.ast,"per game"],["FG%",`${p.fg}%`,"field goals"],["3PT%",`${p.threept}%`,"three-point"],["FT%",`${p.ft}%`,"free throws"]].map(([l,v,s])=>(
           <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div><div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{s}</div></div>
         ))}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12}}>
         {[["GP",p.gp],["STL",p.stl],["BLK",p.blk],["TO",p.to_]].map(([l,v])=>(
           <div key={l} style={S.statCard}><div style={{...S.statVal,fontSize:20}}>{v}</div><div style={S.statLabel}>{l}</div></div>
         ))}
@@ -1483,6 +1503,7 @@ function MyStats({player:p}){
 }
 
 function MyAttendance({player}){
+  const mob=useMobile();
   const [history,setHistory]=useState([]);
   const [loading,setLoading]=useState(true);
   const sColors={Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"};
@@ -1516,7 +1537,7 @@ function MyAttendance({player}){
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:20}}>
         {[["Present",present,"#4ade80"],["Late",late,"#facc15"],["Excused",excused,"#60a5fa"],["Absent",absent,"#f87171"]].map(([l,v,c])=>(
           <div key={l} style={{...S.statCard,borderTop:`3px solid ${c}`}}>
             <div style={{...S.statVal,color:c,fontSize:24}}>{v}</div>
@@ -1554,6 +1575,7 @@ function MyAttendance({player}){
 }
 
 function MyHealth({player}){
+  const mob=useMobile();
   const [reports,setReports]=useState([]);
   const [loading,setLoading]=useState(true);
   const sevColor={Mild:"#60a5fa",Moderate:"#facc15",Severe:"#f87171"};
@@ -1571,7 +1593,7 @@ function MyHealth({player}){
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>My Health Records</h1>
       <p style={{color:BRAND.textSecondary,fontSize:13,marginBottom:20}}>Health and injury records managed by the coaching staff.</p>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:12,marginBottom:20}}>
         {[["Total Reports",reports.length,BRAND.textSecondary],["Active",active.length,"#fb923c"],["Cleared",cleared.length,"#4ade80"]].map(([l,v,c])=>(
           <div key={l} style={S.statCard}>
             <div style={{...S.statVal,color:c,fontSize:24}}>{v}</div>
@@ -1801,6 +1823,7 @@ function Login({onLogin}){
 
 // ── APP ──
 export default function App(){
+  const isMobile=useIsMobile();
   const [loggedIn,setLoggedIn]=useState(false);
   const [role,setRole]=useState(null);
   const [currentPlayer,setCurrentPlayer]=useState(null);
@@ -1908,6 +1931,7 @@ export default function App(){
   const isMobile=typeof window!=="undefined"&&window.innerWidth<768;
 
   return(
+    <MobileCtx.Provider value={isMobile}>
     <div style={S.app}>
       <header style={S.header}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -1969,8 +1993,9 @@ export default function App(){
             </div>
           )}
         </nav>
-        <main style={{...S.main,width:"100%"}}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
+        <main style={{...S.main,width:"100%",padding:isMobile?"14px 12px":"24px 28px"}}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
       </div>
     </div>
+    </MobileCtx.Provider>
   );
 }
