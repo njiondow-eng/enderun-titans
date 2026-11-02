@@ -19,6 +19,19 @@ import { supabase } from "./supabaseClient";
 import Playbook from "./Playbook";
 import UserManager from "./UserManager";
 
+// Safe date parser — handles YYYY-MM-DD and MM/DD/YYYY, returns valid Date or null
+const parseDate=d=>{
+  if(!d) return null;
+  // Already ISO format
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return new Date(d+"T00:00:00");
+  // MM/DD/YYYY → convert
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(d)){const[m,day,y]=d.split("/");return new Date(`${y}-${m}-${day}T00:00:00`);}
+  const dt=new Date(d);
+  return isNaN(dt)?null:dt;
+};
+const fmtMonth=d=>{const dt=parseDate(d);return dt?dt.toLocaleString("en",{month:"short"}):"—";};
+const fmtDay=d=>{const dt=parseDate(d);return dt?dt.getDate():"—";};
+
 const BRAND = {
   crimson:"#9B1C1C", crimsonDark:"#6B0F0F", crimsonLight:"#C53030",
   gold:"#D4A017", black:"#0D0D0D", charcoal:"#1A1A1A",
@@ -546,8 +559,8 @@ function Practice(){
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                 <div style={{display:"flex",alignItems:"center",gap:16}}>
                   <div style={{width:48,textAlign:"center"}}>
-                    <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(p.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
-                    <div style={{fontSize:24,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{new Date(p.date+"T00:00").getDate()}</div>
+                    <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{fmtMonth(p.date)}</div>
+                    <div style={{fontSize:24,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{fmtDay(p.date)}</div>
                   </div>
                   <div style={{width:1,height:40,background:BRAND.crimson}}/>
                   <div>
@@ -712,8 +725,8 @@ function League(){
                             <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:BRAND.charcoal,borderRadius:10,borderLeft:`3px solid ${hasScore?(won?BRAND.gold:BRAND.crimson):BRAND.border}`,flexWrap:"wrap",gap:10}}>
                               <div style={{display:"flex",alignItems:"center",gap:14}}>
                                 <div style={{width:44,textAlign:"center"}}>
-                                  <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{new Date(g.date+"T00:00").toLocaleString("en",{month:"short"})}</div>
-                                  <div style={{fontSize:22,fontWeight:800,color:hasScore?(won?BRAND.gold:BRAND.crimsonLight):BRAND.textPrimary,lineHeight:1}}>{new Date(g.date+"T00:00").getDate()}</div>
+                                  <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{fmtMonth(g.date)}</div>
+                                  <div style={{fontSize:22,fontWeight:800,color:hasScore?(won?BRAND.gold:BRAND.crimsonLight):BRAND.textPrimary,lineHeight:1}}>{fmtDay(g.date)}</div>
                                 </div>
                                 <div style={{width:1,height:36,background:BRAND.border}}/>
                                 <div>
