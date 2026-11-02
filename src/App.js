@@ -44,8 +44,10 @@ const ROLES = {
   TEAM_MANAGER: "Team Manager",
   PLAYER: "Player",
   ASSISTANT: "Assistant Coach",
+  CONDITIONING_COACH: "Conditioning Coach",
 };
 const isAdmin = (role) => role === ROLES.HEAD_COACH || role === ROLES.TEAM_MANAGER;
+const isConditioningCoach = (role) => role === ROLES.CONDITIONING_COACH;
 
 const INIT_PLAYERS = [
   { name:"Miekho Joush M. Natinga", jersey:1, pos:"PG", yr:"1st Year", height:"5'10\"", weight:"78 kg", dob:"2006", birthplace:"Malaybalay City, Bukidnon", nationality:"Filipino", course:"BS IHM", phone:"09944829504", email:"miekho082106@gmail.com", status:"Active", pts:8.4, reb:3.1, ast:2.9, fg:38.2, threept:31.0, ft:74.0, gp:10, stl:1.2, blk:0.2, to_:1.8, photo:"MN" },
@@ -82,6 +84,17 @@ const PLAYER_NAV = [
   { id:"myhealth", label:"My Health", icon:"🏥" },
   { id:"schedule", label:"Schedule", icon:"📅" },
   { id:"playbook", label:"Playbook", icon:"📖" },
+  { id:"announcements", label:"Announcements", icon:"📢" },
+];
+
+const CONDITIONING_NAV = [
+  { id:"conditioningdashboard", label:"Dashboard", icon:"🏠" },
+  { id:"roster", label:"Roster", icon:"👥" },
+  { id:"performance", label:"Performance", icon:"📊" },
+  { id:"attendance", label:"Attendance", icon:"✅" },
+  { id:"health", label:"Health Report", icon:"🏥" },
+  { id:"schedule", label:"Schedule", icon:"📅" },
+  { id:"practice", label:"Practice", icon:"🏋️" },
   { id:"announcements", label:"Announcements", icon:"📢" },
 ];
 
@@ -155,7 +168,7 @@ const Spinner=()=>(
 const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
 
 // ── ROSTER ──
-function Roster({players,loadPlayers,loading}){
+function Roster({players,loadPlayers,loading,readOnly=false}){
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [showForm,setShowForm]=useState(false);
@@ -237,7 +250,7 @@ function Roster({players,loadPlayers,loading}){
         </div>
         <div style={{display:"flex",gap:10}}>
           <input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,width:200}}/>
-          <button onClick={openAdd} style={S.btn("gold")}>+ Add Player</button>
+          {!readOnly&&<button onClick={openAdd} style={S.btn("gold")}>+ Add Player</button>}
         </div>
       </div>
       {loading?<Spinner/>:(
@@ -264,10 +277,10 @@ function Roster({players,loadPlayers,loading}){
                   </div>
                 ))}
               </div>
-              <div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
+              {!readOnly&&<div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
                 <button onClick={()=>openEdit(p)} style={{...S.btn("secondary"),flex:1,padding:"6px",fontSize:12}}>✏️ Edit</button>
                 <button onClick={()=>deletePlayer(p.id)} style={{...S.btn("danger"),flex:1,padding:"6px",fontSize:12}}>🗑️ Remove</button>
-              </div>
+              </div>}
             </div>
           ))}
         </div>
@@ -444,7 +457,7 @@ function Statistics({players}){
   );
 }
 
-function AdminAttendance({players}){
+function AdminAttendance({players,readOnly=false}){
   const mob=useMobile();
   const [marks,setMarks]=useState(()=>Object.fromEntries(players.map(p=>[p.id,"Present"])));
   const [session,setSession]=useState({date:new Date().toISOString().split("T")[0],type:"Practice"});
@@ -484,7 +497,7 @@ function AdminAttendance({players}){
           <select value={session.type} onChange={e=>setSession(s=>({...s,type:e.target.value}))} style={{...S.input,width:160}}>
             {["Practice","Game","Film Session","Team Activity"].map(t=><option key={t}>{t}</option>)}
           </select>
-          <button onClick={saveSession} style={S.btn("gold")}>{saved?"✅ Saved!":"💾 Save Session"}</button>
+          {!readOnly&&<button onClick={saveSession} style={S.btn("gold")}>{saved?"✅ Saved!":"💾 Save Session"}</button>}
         </div>
         <table style={S.table}>
           <thead><tr>
@@ -523,7 +536,7 @@ function AdminAttendance({players}){
   );
 }
 
-function Practice(){
+function Practice({readOnly=false}){
   const [practices,setPractices]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -550,7 +563,7 @@ function Practice(){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Practice Scheduling</h1>
-        <button onClick={()=>{setForm({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Session</button>
+        {!readOnly&&<button onClick={()=>{setForm({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Session</button>}
       </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
@@ -795,7 +808,7 @@ function League(){
   );
 }
 
-function AdminHealth({players}){
+function AdminHealth({players,readOnly=false}){
   const [reports,setReports]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -824,7 +837,7 @@ function AdminHealth({players}){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div><h1 style={{fontSize:20,fontWeight:700,margin:0}}>Health Reports</h1></div>
-        <button onClick={()=>{setForm({player_id:"",player_name:"",injury:"",severity:"Mild",date:"",return_date:"",status:"Monitoring",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Report</button>
+        {!readOnly&&<button onClick={()=>{setForm({player_id:"",player_name:"",injury:"",severity:"Mild",date:"",return_date:"",status:"Monitoring",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Report</button>}
       </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
@@ -931,6 +944,74 @@ function Announcements(){
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+function ConditioningDashboard({players,setPage}){
+  const mob=useMobile();
+  const [healthReports,setHealthReports]=useState([]);
+  const [attendance,setAttendance]=useState([]);
+  useEffect(()=>{
+    supabase.from("health_reports").select("*").order("date",{ascending:false}).limit(5).then(({data})=>setHealthReports(data||[]));
+    supabase.from("attendance").select("*").order("session_date",{ascending:false}).limit(50).then(({data})=>setAttendance(data||[]));
+  },[]);
+  const today=new Date().toISOString().split("T")[0];
+  const todayAtt=attendance.filter(a=>a.session_date===today);
+  const present=todayAtt.filter(a=>a.status==="Present").length;
+  const injured=players.filter(p=>p.status==="Injured").length;
+  const active=players.filter(p=>p.status==="Active").length;
+  return(
+    <div style={{width:"100%"}}>
+      <div style={{marginBottom:22}}>
+        <h2 style={{fontSize:22,fontWeight:800,margin:0}}>Conditioning Dashboard</h2>
+        <p style={{color:BRAND.textSecondary,fontSize:13,margin:"4px 0 0"}}>Strength & Conditioning — Season 2026–27</p>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:22}}>
+        {[
+          {icon:"👥",label:"Active Players",value:active,color:BRAND.crimson},
+          {icon:"🏋️",label:"Training Today",value:present||"—",color:BRAND.gold},
+          {icon:"🏥",label:"Injured",value:injured,color:"#f97316"},
+          {icon:"💪",label:"Full Roster",value:players.length,color:"#60a5fa"},
+        ].map(({icon,label,value,color})=>(
+          <div key={label} style={{...S.statCard}}>
+            <div style={{fontSize:26,marginBottom:4}}>{icon}</div>
+            <div style={{fontSize:26,fontWeight:800,color}}>{value}</div>
+            <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:16}}>
+        <div style={S.card}>
+          <div style={S.cardTitle}>Roster Status</div>
+          {players.slice(0,8).map(p=>(
+            <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${BRAND.border}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {p.photo_url?<img src={p.photo_url} alt="" style={{width:32,height:32,borderRadius:"50%",objectFit:"cover"}}/>:<div style={{width:32,height:32,borderRadius:"50%",background:BRAND.surfaceDark,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:BRAND.gold}}>{p.name?.charAt(0)}</div>}
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{p.name?.split(" ").slice(0,2).join(" ")}</div>
+                  <div style={{fontSize:11,color:BRAND.textSecondary}}>#{p.jersey} · {p.pos}</div>
+                </div>
+              </div>
+              <span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:p.status==="Injured"?"rgba(249,115,22,0.15)":p.status==="Active"?"rgba(74,222,128,0.15)":"rgba(148,163,184,0.15)",color:p.status==="Injured"?"#f97316":p.status==="Active"?"#4ade80":"#94a3b8"}}>{p.status||"Active"}</span>
+            </div>
+          ))}
+          {players.length>8&&<div style={{fontSize:12,color:BRAND.textSecondary,textAlign:"center",paddingTop:8,cursor:"pointer"}} onClick={()=>setPage("roster")}>View all {players.length} players →</div>}
+        </div>
+        <div style={S.card}>
+          <div style={S.cardTitle}>Recent Health Reports</div>
+          {healthReports.length===0?<div style={{color:BRAND.textSecondary,fontSize:13,textAlign:"center",padding:"20px 0"}}>All players healthy! 💪</div>:healthReports.map(r=>(
+            <div key={r.id} style={{padding:"8px 0",borderBottom:`1px solid ${BRAND.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontWeight:600,fontSize:13}}>{r.player_name}</div>
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:r.severity==="Severe"?"rgba(239,68,68,0.15)":r.severity==="Moderate"?"rgba(249,115,22,0.15)":"rgba(234,179,8,0.15)",color:r.severity==="Severe"?"#ef4444":r.severity==="Moderate"?"#f97316":"#eab308"}}>{r.severity}</span>
+              </div>
+              <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>{r.injury}</div>
+            </div>
+          ))}
+          <div style={{marginTop:12,textAlign:"right"}}><button onClick={()=>setPage("health")} style={{...S.btn("secondary"),fontSize:12,padding:"5px 14px"}}>View All Reports</button></div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1796,7 +1877,7 @@ function Login({onLogin}){
       if(authError) throw authError;
       const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",data.user.id).single();
       const role=profile?.role||"player";
-      const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER};
+      const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER,"conditioning_coach":ROLES.CONDITIONING_COACH};
       let playerData=null;
       if(role==="player"&&profile?.player_id){
         const{data:pl}=await supabase.from("players").select("*").eq("id",profile.player_id).single();
@@ -1865,7 +1946,7 @@ export default function App(){
       try{
         const{data:profile}=await supabase.from("user_profiles").select("*").eq("id",session.user.id).single();
         if(!profile) return false;
-        const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER};
+        const roleMap={"head_coach":ROLES.HEAD_COACH,"team_manager":ROLES.TEAM_MANAGER,"assistant":ROLES.ASSISTANT,"player":ROLES.PLAYER,"conditioning_coach":ROLES.CONDITIONING_COACH};
         const r=roleMap[profile.role]||ROLES.PLAYER;
         let playerData=null;
         if(profile.role==="player"&&profile.player_id){
@@ -1873,7 +1954,7 @@ export default function App(){
           playerData=pl;
         }
         setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
-        setPage(isAdmin(r)?"dashboard":"playerdashboard");
+        setPage(isAdmin(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard");
         return true;
       }catch(e){ return false; }
     };
@@ -1901,7 +1982,7 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":"playerdashboard"); };
+  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard"); };
   const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); try{localStorage.removeItem("titans_page");}catch{} };
 
   if(authLoading) return(
@@ -1941,8 +2022,19 @@ export default function App(){
     announcements:<PlayerAnnouncements/>,
   };
 
-  const nav=isAdmin(role)?ADMIN_NAV:PLAYER_NAV;
-  const pages=isAdmin(role)?adminPages:playerPages;
+  const conditioningPages={
+    conditioningdashboard:<ConditioningDashboard players={players} setPage={setPage}/>,
+    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading} readOnly={true}/>,
+    performance:<Statistics players={players}/>,
+    attendance:<AdminAttendance players={players} readOnly={true}/>,
+    health:<AdminHealth players={players} readOnly={true}/>,
+    schedule:<PlayerSchedule/>,
+    practice:<Practice readOnly={true}/>,
+    announcements:<PlayerAnnouncements/>,
+  };
+
+  const nav=isAdmin(role)?ADMIN_NAV:isConditioningCoach(role)?CONDITIONING_NAV:PLAYER_NAV;
+  const pages=isAdmin(role)?adminPages:isConditioningCoach(role)?conditioningPages:playerPages;
 
   return(
     <MobileCtx.Provider value={isMobile}>
@@ -1991,7 +2083,7 @@ export default function App(){
           boxShadow:navOpen?"4px 0 20px rgba(0,0,0,0.4)":"none",
         }}>
           <div style={{padding:"6px 18px 12px",fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary}}>
-            {isAdmin(role)?"Admin Panel":"Player Portal"}
+            {isAdmin(role)?"Admin Panel":isConditioningCoach(role)?"Conditioning":"Player Portal"}
           </div>
           {nav.map(item=>(
             <div key={item.id} onClick={()=>{setPage(item.id);setNavOpen(false);}} style={S.navItem(page===item.id)}>
@@ -2010,7 +2102,7 @@ export default function App(){
             </div>
           )}
         </nav>
-        <main style={{...S.main,width:"100%",padding:isMobile?"14px 12px":"24px 28px"}}>{pages[page]||pages[isAdmin(role)?"dashboard":"myprofile"]}</main>
+        <main style={{...S.main,width:"100%",padding:isMobile?"14px 12px":"24px 28px"}}>{pages[page]||pages[isAdmin(role)?"dashboard":isConditioningCoach(role)?"conditioningdashboard":"myprofile"]}</main>
       </div>
     </div>
     </MobileCtx.Provider>
