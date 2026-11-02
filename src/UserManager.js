@@ -36,9 +36,11 @@ const Modal=({title,onClose,children})=>(
 
 export default function UserManager({ players }) {
   const [users, setUsers] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("accounts"); // "accounts" | "activity"
   const [showForm, setShowForm] = useState(false);
-  const [showPwForm, setShowPwForm] = useState(null); // user id being reset
+  const [showPwForm, setShowPwForm] = useState(null);
   const [newPassword, setNewPassword] = useState("");
   const [form, setForm] = useState({ email:"", password:"", role:"player", player_id:"", full_name:"" });
   const [saving, setSaving] = useState(false);
@@ -48,8 +50,12 @@ export default function UserManager({ players }) {
 
   const loadUsers = async () => {
     setLoading(true);
-    const { data } = await supabase.from("user_profiles").select("*").order("created_at",{ascending:false});
-    if (data) setUsers(data);
+    const [{ data: profiles }, { data: act }] = await Promise.all([
+      supabase.from("user_profiles").select("*").order("created_at",{ascending:false}),
+      supabase.from("user_activity").select("*").order("last_sign_in_at",{ascending:false,nullsFirst:false}),
+    ]);
+    if (profiles) setUsers(profiles);
+    if (act) setActivity(act);
     setLoading(false);
   };
 
@@ -109,14 +115,45 @@ export default function UserManager({ players }) {
   const roleColors = { "head_coach":"#D4A017", "team_manager":"#C53030", "player":"#60a5fa", "assistant":"#a78bfa" };
   const roleLabels = { "head_coach":"Head Coach", "team_manager":"Team Manager", "player":"Player", "assistant":"Assistant Coach" };
 
+  const fmtTime = (iso) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffMin < 2) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffDay === 1) return "Yesterday";
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  };
+
+  const fmtFull = (iso) => {
+    if (!iso) return "Never";
+    return new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  };
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>User Management</h1>
           <p style={{color:BRAND.textSecondary,fontSize:12,margin:"3px 0 0"}}>Manage login accounts for all team members</p>
         </div>
-        <button onClick={()=>setShowForm(true)} style={S.btn("gold")}>+ Create Account</button>
+        {tab==="accounts"&&<button onClick={()=>setShowForm(true)} style={S.btn("gold")}>+ Create Account</button>}
+        {tab==="activity"&&<button onClick={loadUsers} style={S.btn("secondary")}>↻ Refresh</button>}
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:20}}>
+        {[["accounts","🔑 Accounts"],["activity","📊 Player Activity"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",background:tab===id?BRAND.crimson:`${BRAND.border}55`,color:tab===id?"#fff":BRAND.textSecondary}}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {msg&&(
@@ -125,59 +162,160 @@ export default function UserManager({ players }) {
         </div>
       )}
 
-      <div style={{...S.card,marginBottom:18,background:"#1a2a40",borderColor:"#1e3a5f"}}>
-        <div style={{fontWeight:700,color:"#60a5fa",marginBottom:8,fontSize:13}}>ℹ️ How login works</div>
-        <div style={{fontSize:12,color:BRAND.textSecondary,lineHeight:1.7}}>
-          1. Create an account for each player/staff with their email and a temporary password<br/>
-          2. They receive a confirmation email — they must click it to activate<br/>
-          3. They log in at <b style={{color:BRAND.textPrimary}}>enderun-titans.vercel.app</b> with their email/password<br/>
-          4. The system automatically detects their role and shows the right dashboard
-        </div>
-      </div>
+      {tab==="accounts"&&(
+        <>
+          <div style={{...S.card,marginBottom:18,background:"#1a2a40",borderColor:"#1e3a5f"}}>
+            <div style={{fontWeight:700,color:"#60a5fa",marginBottom:8,fontSize:13}}>ℹ️ How login works</div>
+            <div style={{fontSize:12,color:BRAND.textSecondary,lineHeight:1.7}}>
+              1. Create an account for each player/staff with their email and a temporary password<br/>
+              2. They receive a confirmation email — they must click it to activate<br/>
+              3. They log in at <b style={{color:BRAND.textPrimary}}>enderun-titans.vercel.app</b> with their email/password<br/>
+              4. The system automatically detects their role and shows the right dashboard
+            </div>
+          </div>
 
-      {loading?(
-        <div style={{textAlign:"center",padding:30,color:BRAND.textSecondary}}>Loading accounts…</div>
-      ):(
-        <div style={S.card}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>
-              <th style={S.th}>Name / Email</th>
-              <th style={S.th}>Role</th>
-              <th style={S.th}>Linked Player</th>
-              <th style={S.th}>Created</th>
-              <th style={S.th}>Actions</th>
-            </tr></thead>
-            <tbody>
-              {users.length===0?(
-                <tr><td colSpan={4} style={{...S.td,textAlign:"center",color:BRAND.textSecondary,padding:24}}>No accounts yet. Create one above.</td></tr>
-              ):users.map(u=>{
-                const linkedPlayer = players.find(p=>p.id===u.player_id);
-                return(
-                  <tr key={u.id}>
-                    <td style={S.td}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <Avatar initials={(u.full_name||"?").split(" ").map(w=>w[0]).slice(0,2).join("")} size={32} color={roleColors[u.role]||BRAND.crimson}/>
-                        <div>
-                          <div style={{fontWeight:600,fontSize:13}}>{u.full_name||"—"}</div>
-                          <div style={{fontSize:11,color:BRAND.textSecondary}}>{u.id.slice(0,8)}…</div>
+          {loading?(
+            <div style={{textAlign:"center",padding:30,color:BRAND.textSecondary}}>Loading accounts…</div>
+          ):(
+            <div style={S.card}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead><tr>
+                  <th style={S.th}>Name / Email</th>
+                  <th style={S.th}>Role</th>
+                  <th style={S.th}>Linked Player</th>
+                  <th style={S.th}>Created</th>
+                  <th style={S.th}>Actions</th>
+                </tr></thead>
+                <tbody>
+                  {users.length===0?(
+                    <tr><td colSpan={5} style={{...S.td,textAlign:"center",color:BRAND.textSecondary,padding:24}}>No accounts yet. Create one above.</td></tr>
+                  ):users.map(u=>{
+                    const linkedPlayer=players.find(p=>p.id===u.player_id);
+                    const act=activity.find(a=>a.id===u.id);
+                    return(
+                      <tr key={u.id}>
+                        <td style={S.td}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <Avatar initials={(u.full_name||"?").split(" ").map(w=>w[0]).slice(0,2).join("")} size={32} color={roleColors[u.role]||BRAND.crimson}/>
+                            <div>
+                              <div style={{fontWeight:600,fontSize:13}}>{u.full_name||"—"}</div>
+                              <div style={{fontSize:11,color:BRAND.textSecondary}}>{u.id.slice(0,8)}…</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${roleColors[u.role]||BRAND.crimson}22`,color:roleColors[u.role]||BRAND.crimson}}>
+                            {roleLabels[u.role]||u.role}
+                          </span>
+                        </td>
+                        <td style={S.td}>{linkedPlayer?linkedPlayer.name:<span style={{color:BRAND.textSecondary}}>—</span>}</td>
+                        <td style={{...S.td,fontSize:11}}>
+                          <div style={{color:BRAND.textSecondary}}>{u.created_at?new Date(u.created_at).toLocaleDateString():""}</div>
+                          {act?.last_sign_in_at&&<div style={{color:"#4ade80",marginTop:2}}>Last: {fmtTime(act.last_sign_in_at)}</div>}
+                          {!act?.last_sign_in_at&&<div style={{color:"#555",marginTop:2}}>Never logged in</div>}
+                        </td>
+                        <td style={S.td}>
+                          <button onClick={()=>{setShowPwForm(u.id);setNewPassword("");}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>🔑 Reset PW</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {tab==="activity"&&(
+        <div>
+          {/* Summary strip */}
+          {activity.length>0&&(()=>{
+            const loggedToday=activity.filter(u=>{
+              if(!u.last_sign_in_at) return false;
+              const d=new Date(u.last_sign_in_at);
+              const now=new Date();
+              return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()&&d.getDate()===now.getDate();
+            }).length;
+            const neverLogged=activity.filter(u=>!u.last_sign_in_at).length;
+            return(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
+                {[
+                  {label:"Total Accounts",val:activity.length,color:BRAND.gold},
+                  {label:"Logged In Today",val:loggedToday,color:"#4ade80"},
+                  {label:"Never Logged In",val:neverLogged,color:"#f87171"},
+                ].map(({label,val,color})=>(
+                  <div key={label} style={{...S.card,marginBottom:0,textAlign:"center",padding:"12px 8px"}}>
+                    <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{val}</div>
+                    <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:4}}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          <div style={S.card}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr>
+                <th style={S.th}>Player / Staff</th>
+                <th style={S.th}>Role</th>
+                <th style={S.th}>Last Login</th>
+                <th style={S.th}>Status</th>
+              </tr></thead>
+              <tbody>
+                {loading?(
+                  <tr><td colSpan={4} style={{...S.td,textAlign:"center",padding:24,color:BRAND.textSecondary}}>Loading…</td></tr>
+                ):activity.length===0?(
+                  <tr><td colSpan={4} style={{...S.td,textAlign:"center",padding:24,color:BRAND.textSecondary}}>No accounts found.</td></tr>
+                ):activity.map(u=>{
+                  const linkedPlayer=players.find(p=>p.id===u.player_id);
+                  const lastIn=u.last_sign_in_at?new Date(u.last_sign_in_at):null;
+                  const now=new Date();
+                  const diffHr=lastIn?(now-lastIn)/3600000:null;
+                  const isOnline=diffHr!==null&&diffHr<0.5;
+                  const isToday=lastIn&&lastIn.toDateString()===now.toDateString();
+                  const isRecent=diffHr!==null&&diffHr<48;
+                  const statusColor=!lastIn?"#555":isOnline?"#4ade80":isToday?"#60a5fa":isRecent?"#D4A017":"#9A8A70";
+                  const statusLabel=!lastIn?"Never":isOnline?"Online now":isToday?"Today":isRecent?"Recent":"Inactive";
+                  const roleColors={"head_coach":"#D4A017","team_manager":"#C53030","player":"#60a5fa","assistant":"#a78bfa"};
+                  const roleLabels={"head_coach":"Head Coach","team_manager":"Manager","player":"Player","assistant":"Asst. Coach"};
+                  return(
+                    <tr key={u.id}>
+                      <td style={S.td}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{position:"relative"}}>
+                            <div style={{width:34,height:34,borderRadius:"50%",background:`${roleColors[u.role]||BRAND.crimson}33`,border:`1.5px solid ${roleColors[u.role]||BRAND.crimson}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:roleColors[u.role]||BRAND.crimson}}>
+                              {(u.full_name||"?").split(" ").map(w=>w[0]).slice(0,2).join("")}
+                            </div>
+                            {isOnline&&<div style={{position:"absolute",bottom:0,right:0,width:9,height:9,borderRadius:"50%",background:"#4ade80",border:"1.5px solid #0D0D0D"}}/>}
+                          </div>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13}}>{u.full_name||u.email}</div>
+                            <div style={{fontSize:10,color:BRAND.textSecondary}}>{linkedPlayer?`#${linkedPlayer.jersey} ${linkedPlayer.position||""}`:u.email}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td style={S.td}>
-                      <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${roleColors[u.role]||BRAND.crimson}22`,color:roleColors[u.role]||BRAND.crimson}}>
-                        {roleLabels[u.role]||u.role}
-                      </span>
-                    </td>
-                    <td style={S.td}>{linkedPlayer?linkedPlayer.name:<span style={{color:BRAND.textSecondary}}>—</span>}</td>
-                    <td style={{...S.td,color:BRAND.textSecondary,fontSize:11}}>{u.created_at?new Date(u.created_at).toLocaleDateString():""}</td>
-                    <td style={S.td}>
-                      <button onClick={()=>{setShowPwForm(u.id);setNewPassword("");}} style={{...S.btn("secondary"),padding:"5px 10px",fontSize:11}}>🔑 Reset PW</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td style={S.td}>
+                        <span style={{padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:700,background:`${roleColors[u.role]||BRAND.crimson}22`,color:roleColors[u.role]||BRAND.crimson}}>
+                          {roleLabels[u.role]||u.role}
+                        </span>
+                      </td>
+                      <td style={{...S.td}}>
+                        <div style={{fontSize:12,fontWeight:600,color:lastIn?BRAND.textPrimary:"#555"}}>{fmtTime(u.last_sign_in_at)||"Never"}</div>
+                        {lastIn&&<div style={{fontSize:10,color:BRAND.textSecondary}}>{fmtFull(u.last_sign_in_at)}</div>}
+                      </td>
+                      <td style={S.td}>
+                        <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:`${statusColor}22`,color:statusColor}}>
+                          {isOnline&&<span style={{width:6,height:6,borderRadius:"50%",background:statusColor,display:"inline-block"}}/>}
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
