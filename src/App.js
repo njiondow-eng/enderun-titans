@@ -1852,15 +1852,33 @@ export default function App(){
   return(
     <div style={S.app}>
       <style>{`
-        @media(max-width:640px){
-          .titans-nav{ position:fixed!important; left:0; top:0; height:100vh; z-index:200; transform:translateX(-100%); transition:transform 0.25s ease; box-shadow:4px 0 24px #000a; }
+        /* ── MOBILE: ≤767px — sidebar as overlay ── */
+        @media(max-width:767px){
+          .titans-nav{
+            position:fixed!important; left:0; top:0; height:100vh!important;
+            width:220px!important; z-index:200;
+            transform:translateX(-100%); transition:transform 0.25s ease;
+            box-shadow:4px 0 24px #000a;
+            min-height:100vh!important;
+          }
           .titans-nav.open{ transform:translateX(0)!important; }
           .titans-overlay{ display:block!important; }
           .titans-main{ padding:16px 14px!important; }
           .titans-header-sub{ display:none!important; }
           .titans-player-name{ display:none!important; }
         }
-        @media(min-width:641px){
+        /* ── TABLET portrait: 768–1023px — compact icon+label sidebar ── */
+        @media(min-width:768px) and (max-width:1023px){
+          .titans-hamburger{ display:none!important; }
+          .titans-overlay{ display:none!important; }
+          .titans-nav{ width:160px!important; }
+          .titans-nav-label{ font-size:11px!important; }
+          .titans-main{ padding:18px 16px!important; }
+          .titans-header-sub{ display:none!important; }
+          .titans-player-name{ display:none!important; }
+        }
+        /* ── DESKTOP: ≥1024px — full sidebar ── */
+        @media(min-width:1024px){
           .titans-hamburger{ display:none!important; }
           .titans-overlay{ display:none!important; }
         }
@@ -1898,7 +1916,7 @@ export default function App(){
           {nav.map(item=>(
             <div key={item.id} onClick={()=>navigate(item.id)} style={S.navItem(page===item.id)}>
               <span style={{fontSize:15}}>{item.icon}</span>
-              <span>{item.label}</span>
+              <span className="titans-nav-label">{item.label}</span>
             </div>
           ))}
           {isAdmin(role)&&!playersLoading&&(
