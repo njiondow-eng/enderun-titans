@@ -1211,7 +1211,7 @@ function PlayerDashboard({player,players,setPage}){
       </div>
 
       {/* Quick Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:20}}>
         {[
           {label:"My PPG",value:ppg.toFixed(1),sub:"points per game"},
           {label:"Attendance",value:attRate!=null?`${attRate}%`:"—",sub:"last 10 sessions"},
@@ -1227,7 +1227,7 @@ function PlayerDashboard({player,players,setPage}){
       </div>
 
       {/* Main Grid */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:16}}>
         {/* Stats vs Team */}
         <div style={{...S.card,marginBottom:0}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>📊 My Stats vs Team Average</div>
@@ -1269,20 +1269,18 @@ function PlayerDashboard({player,players,setPage}){
             {leagues.length===0?<div style={{fontSize:12,color:BRAND.textSecondary}}>No leagues yet.</div>:
               leagues.slice(0,3).map(lg=>{
                 // games don't have league_id — show all games for context
-                const lgW=playedGames.filter(g=>g.us>g.them).length;
-                const lgL=playedGames.filter(g=>g.us<g.them).length;
                 const next=games.filter(g=>g.date&&new Date(g.date+"T00:00:00")>=today).slice(0,2);
                 return(
                   <div key={lg.id} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #1e1e1e"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <span style={{fontSize:12,fontWeight:700}}>{lg.name}</span>
-                      <span style={{fontSize:11,color:BRAND.gold,fontWeight:600}}>{lgW}W-{lgL}L</span>
-                    </div>
-                    {next.map(g=>(
-                      <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
-                      </div>
-                    ))}
+                    <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:BRAND.gold}}>{lg.name}</div>
+                    {next.length===0
+                      ?<div style={{fontSize:11,color:"#555"}}>No upcoming games</div>
+                      :next.map(g=>(
+                        <div key={g.id} style={{fontSize:11,color:BRAND.textSecondary,display:"flex",gap:6,alignItems:"center",marginBottom:2}}>
+                          <span style={{color:"#666"}}>→</span>{fmtDate(g.date)} vs {g.opp||"TBD"}{g.venue?` · ${g.venue}`:""}
+                        </div>
+                      ))
+                    }
                   </div>
                 );
               })
