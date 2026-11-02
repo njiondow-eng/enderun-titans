@@ -1935,6 +1935,7 @@ export default function App(){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button
             onClick={()=>setNavOpen(o=>!o)}
+            onMouseEnter={()=>setNavOpen(true)}
             style={{background:"none",border:"none",cursor:"pointer",color:BRAND.textPrimary,fontSize:22,lineHeight:1,padding:"4px 6px",display:"flex",alignItems:"center"}}
             aria-label="Toggle menu"
           >
@@ -1959,7 +1960,9 @@ export default function App(){
             style={{position:"fixed",inset:0,top:60,background:"rgba(0,0,0,0.5)",zIndex:99}}
           />
         )}
-        <nav style={{
+        <nav
+          onMouseLeave={()=>setNavOpen(false)}
+          style={{
           ...S.nav,
           position:"fixed",
           top:60,
