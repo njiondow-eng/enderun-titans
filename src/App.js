@@ -1449,11 +1449,8 @@ function PlayerDashboard({player,players,setPage}){
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
     ]).then(([p,g,l,a,ann])=>{
-      const now=new Date();
-      const parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
-      const isPracticeUpcoming=x=>{const dt=new Date(x.date+"T00:00:00");const dStr=x.date;const todayStr=now.toISOString().split("T")[0];if(dStr>todayStr)return true;if(dStr<todayStr)return false;const mins=parseTime(x.time);const nowMins=now.getHours()*60+now.getMinutes();return mins>nowMins;};
-      const todayStr=now.toISOString().split("T")[0];
-      setPractices((p.data||[]).filter(isPracticeUpcoming).slice(0,4));
+      const todayStr=new Date().toISOString().split("T")[0];
+      setPractices(p.data||[]);
       setGames((g.data||[]).filter(x=>x.date>=todayStr));
       setLeagues(l.data||[]);
       setAttendance(a.data||[]);
@@ -1463,6 +1460,14 @@ function PlayerDashboard({player,players,setPage}){
   },[player.id]);
 
   if(loading) return <Spinner/>;
+
+  // Time-aware upcoming filter — recalculated each render
+  const _pNow=new Date();
+  const _pTodayStr=_pNow.toISOString().split("T")[0];
+  const _pNowMins=_pNow.getHours()*60+_pNow.getMinutes();
+  const _parseT=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
+  const _isPUp=x=>{if(x.date>_pTodayStr)return true;if(x.date<_pTodayStr)return false;return _parseT(x.time)>_pNowMins;};
+  const upcomingPractices=practices.filter(_isPUp).slice(0,4);
 
   const today=new Date(); today.setHours(0,0,0,0);
   const playedGames=games.filter(g=>g.us!=null&&g.them!=null);
@@ -1486,7 +1491,7 @@ function PlayerDashboard({player,players,setPage}){
   const tpp=parseFloat(player.threept)||0;
 
   const attRate=attendance.length?Math.round((attendance.filter(a=>a.status==="Present").length/attendance.length)*100):null;
-  const nextPractice=practices[0];
+  const nextPractice=upcomingPractices[0];
   const myRank=activePlayers.filter(p=>parseFloat(p.pts||0)>ppg).length+1;
 
   const fmtDate=d=>{const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});};
@@ -1574,7 +1579,7 @@ function PlayerDashboard({player,players,setPage}){
         </div>
         {(()=>{
           const upcoming=[
-            ...practices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",sub:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+            ...upcomingPractices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",sub:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
             ...upcomingGames.slice(0,5).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,sub:[g.type,g.venue].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
           ].sort((a,b)=>a._date-b._date).slice(0,6);
           if(upcoming.length===0) return <div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming events scheduled.</div>;
