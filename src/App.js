@@ -543,6 +543,7 @@ function Practice({readOnly=false}){
   const [editing,setEditing]=useState(null);
   const [form,setForm]=useState({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});
   const [saving,setSaving]=useState(false);
+  const [practiceTab,setPracticeTab]=useState("upcoming");
 
   useEffect(()=>{ load(); },[]);
   const load=async()=>{ setLoading(true); const{data}=await supabase.from("practices").select("*").order("date",{ascending:true}); if(data)setPractices(data); setLoading(false); };
@@ -557,23 +558,33 @@ function Practice({readOnly=false}){
 
   const del=async(id)=>{ if(!window.confirm("Delete?")) return; await supabase.from("practices").delete().eq("id",id); load(); };
 
-
+  const todayStr=new Date().toISOString().split("T")[0];
+  const upcomingP=practices.filter(p=>p.date>=todayStr);
+  const pastP=practices.filter(p=>p.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date));
+  const shownP=practiceTab==="upcoming"?upcomingP:pastP;
 
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Practice Scheduling</h1>
         {!readOnly&&<button onClick={()=>{setForm({date:"",time:"6:00 AM",type:"Regular Practice",location:"Enderun Gym",objectives:"",notes:""});setEditing(null);setShowForm(true);}} style={S.btn("gold")}>+ New Session</button>}
       </div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[{id:"upcoming",label:"📅 Upcoming",count:upcomingP.length},{id:"past",label:"📋 Past",count:pastP.length}].map(t=>(
+          <button key={t.id} onClick={()=>setPracticeTab(t.id)} style={{padding:"7px 16px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:13,background:practiceTab===t.id?BRAND.gold:"#2a2a2a",color:practiceTab===t.id?"#1a1a1a":BRAND.textSecondary,transition:"all .15s"}}>
+            {t.label} <span style={{background:practiceTab===t.id?"#1a1a1a33":"#ffffff22",borderRadius:10,padding:"1px 7px",marginLeft:4,fontSize:11}}>{t.count}</span>
+          </button>
+        ))}
+      </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
-          {practices.map(p=>(
+          {shownP.map(p=>(
             <div key={p.id} style={{...S.card,marginBottom:0}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
                 <div style={{display:"flex",alignItems:"center",gap:16}}>
                   <div style={{width:48,textAlign:"center"}}>
                     <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{fmtMonth(p.date)}</div>
-                    <div style={{fontSize:24,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{fmtDay(p.date)}</div>
+                    <div style={{fontSize:24,fontWeight:800,color:practiceTab==="past"?BRAND.textSecondary:BRAND.gold,lineHeight:1}}>{fmtDay(p.date)}</div>
                   </div>
                   <div style={{width:1,height:40,background:BRAND.crimson}}/>
                   <div>
@@ -582,14 +593,14 @@ function Practice({readOnly=false}){
                     {p.objectives&&<div style={{fontSize:12,color:BRAND.textSecondary}}>🎯 {p.objectives}</div>}
                   </div>
                 </div>
-                <div style={{display:"flex",gap:8}}>
+                {!readOnly&&<div style={{display:"flex",gap:8}}>
                   <button onClick={()=>{setForm({...p});setEditing(p.id);setShowForm(true);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:12}}>✏️</button>
                   <button onClick={()=>del(p.id)} style={{...S.btn("danger"),padding:"5px 12px",fontSize:12}}>🗑️</button>
-                </div>
+                </div>}
               </div>
             </div>
           ))}
-          {practices.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No practice sessions yet. Add one!</div>}
+          {shownP.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>{practiceTab==="upcoming"?"No upcoming practices scheduled.":"No past practices recorded."}</div>}
         </div>
       )}
       {showForm&&(
