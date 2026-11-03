@@ -895,18 +895,28 @@ function Announcements(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({title:"",body:"",type:"Practice"});
+  const [editing,setEditing]=useState(null);
+  const BLANK={title:"",body:"",type:"Practice"};
+  const [form,setForm]=useState(BLANK);
   const [saving,setSaving]=useState(false);
-  const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
-  const colors={Practice:"#1e3a5f",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
+  const tcolors={Practice:"#60a5fa",Game:"#f472b6",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
+  const colors={Practice:"#1e3a5f",Game:"#3d1535",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
+  const TYPES=["Practice","Game","Academic","Social","Schedule","General"];
 
   useEffect(()=>{ load(); },[]);
   const load=async()=>{ setLoading(true); const{data}=await supabase.from("announcements").select("*").order("created_at",{ascending:false}); if(data)setItems(data); setLoading(false); };
 
+  const openNew=()=>{ setEditing(null); setForm(BLANK); setShowForm(true); };
+  const openEdit=(a)=>{ setEditing(a.id); setForm({title:a.title,body:a.body||"",type:a.type||"Practice"}); setShowForm(true); };
+
   const save=async()=>{
     if(!form.title) return; setSaving(true);
-    await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0]}]);
-    setSaving(false); setShowForm(false); setForm({title:"",body:"",type:"Practice"}); load();
+    if(editing){
+      await supabase.from("announcements").update({title:form.title,body:form.body,type:form.type}).eq("id",editing);
+    } else {
+      await supabase.from("announcements").insert([{...form,date:new Date().toISOString().split("T")[0]}]);
+    }
+    setSaving(false); setShowForm(false); setForm(BLANK); setEditing(null); load();
   };
 
   const del=async(id)=>{ await supabase.from("announcements").delete().eq("id",id); load(); };
@@ -915,16 +925,19 @@ function Announcements(){
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Announcements</h1>
-        <button onClick={()=>setShowForm(true)} style={S.btn("gold")}>+ Post Announcement</button>
+        <button onClick={openNew} style={S.btn("gold")}>+ Post Announcement</button>
       </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
           {items.map(a=>(
             <div key={a.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`}}>
-              <div style={{display:"flex",gap:10,marginBottom:8}}>
+              <div style={{display:"flex",gap:10,marginBottom:8,alignItems:"center"}}>
                 <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:colors[a.type]||"#222",color:tcolors[a.type]||"#aaa"}}>{a.type}</span>
                 <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date}</span>
-                <button onClick={()=>del(a.id)} style={{...S.btn("danger"),padding:"2px 10px",fontSize:11,marginLeft:"auto"}}>Remove</button>
+                <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+                  <button onClick={()=>openEdit(a)} style={{...S.btn("secondary"),padding:"2px 10px",fontSize:11}}>✏️ Edit</button>
+                  <button onClick={()=>del(a.id)} style={{...S.btn("danger"),padding:"2px 10px",fontSize:11}}>Remove</button>
+                </div>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
               <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
@@ -934,13 +947,13 @@ function Announcements(){
         </div>
       )}
       {showForm&&(
-        <Modal title="New Announcement" onClose={()=>setShowForm(false)}>
+        <Modal title={editing?"Edit Announcement":"New Announcement"} onClose={()=>{setShowForm(false);setEditing(null);}}>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Title *</label><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={S.input}/></div>
           <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Message</label><textarea value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} style={{...S.input,height:80,resize:"vertical"}}/></div>
-          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={S.input}>{["Practice","Academic","Social","Schedule","General"].map(t=><option key={t}>{t}</option>)}</select></div>
+          <div style={{marginBottom:11}}><label style={{display:"block",fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={S.input}>{TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
           <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowForm(false)} style={S.btn("secondary")}>Cancel</button>
-            <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Posting…":"Post"}</button>
+            <button onClick={()=>{setShowForm(false);setEditing(null);}} style={S.btn("secondary")}>Cancel</button>
+            <button onClick={save} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":editing?"Save Changes":"Post"}</button>
           </div>
         </Modal>
       )}
