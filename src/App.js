@@ -591,10 +591,11 @@ function Practice({readOnly=false}){
   };
   const attColor=pct=>pct>=80?"#4ade80":pct>=60?"#facc15":"#f87171";
 
-  const _now=new Date();
+  const _now=new Date(); // recalculated each render
   const todayStr=_now.toISOString().split("T")[0];
   const _parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
-  const _isUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return _parseTime(p.time)>_now.getHours()*60+_now.getMinutes();};
+  const _nowMins=_now.getHours()*60+_now.getMinutes();
+  const _isUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return _parseTime(p.time)>_nowMins;};
   const upcomingP=practices.filter(_isUpcoming);
   const pastP=practices.filter(p=>!_isUpcoming(p)).sort((a,b)=>b.date.localeCompare(a.date));
   const shownP=practiceTab==="upcoming"?upcomingP:pastP;
@@ -623,14 +624,15 @@ function Practice({readOnly=false}){
                 {/* Summary row — click to expand */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,cursor:"pointer"}} onClick={()=>setExpandedP(isExp?null:p.id)}>
                   <div style={{display:"flex",alignItems:"center",gap:16}}>
-                    <div style={{width:48,textAlign:"center"}}>
+                    <div style={{width:52,textAlign:"center"}}>
                       <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{fmtMonth(p.date)}</div>
-                      <div style={{fontSize:24,fontWeight:800,color:practiceTab==="past"?BRAND.textSecondary:BRAND.gold,lineHeight:1}}>{fmtDay(p.date)}</div>
+                      <div style={{fontSize:26,fontWeight:800,color:practiceTab==="past"?"#aaa":BRAND.gold,lineHeight:1}}>{fmtDay(p.date)}</div>
                     </div>
-                    <div style={{width:1,height:40,background:BRAND.crimson}}/>
+                    <div style={{width:1,height:44,background:BRAND.crimson}}/>
                     <div>
                       <div style={{fontWeight:700,fontSize:15}}>{p.type}</div>
-                      <div style={{fontSize:12,color:BRAND.textSecondary}}>{p.time} · {p.location}</div>
+                      <div style={{fontSize:13,color:"#d4a843",fontWeight:600}}>{p.time}</div>
+                      <div style={{fontSize:12,color:BRAND.textSecondary}}>{p.location}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
