@@ -896,6 +896,7 @@ function Announcements(){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
+  const [tab,setTab]=useState("upcoming");
   const BLANK={title:"",body:"",type:"Practice"};
   const [form,setForm]=useState(BLANK);
   const [saving,setSaving]=useState(false);
@@ -904,7 +905,7 @@ function Announcements(){
   const TYPES=["Practice","Game","Academic","Social","Schedule","General"];
 
   useEffect(()=>{ load(); },[]);
-  const load=async()=>{ setLoading(true); const{data}=await supabase.from("announcements").select("*").order("created_at",{ascending:false}); if(data)setItems(data); setLoading(false); };
+  const load=async()=>{ setLoading(true); const{data}=await supabase.from("announcements").select("*").order("date",{ascending:false}); if(data)setItems(data); setLoading(false); };
 
   const openNew=()=>{ setEditing(null); setForm(BLANK); setShowForm(true); };
   const openEdit=(a)=>{ setEditing(a.id); setForm({title:a.title,body:a.body||"",type:a.type||"Practice"}); setShowForm(true); };
@@ -921,15 +922,27 @@ function Announcements(){
 
   const del=async(id)=>{ await supabase.from("announcements").delete().eq("id",id); load(); };
 
+  const todayStr=new Date().toISOString().split("T")[0];
+  const upcoming=items.filter(a=>!a.date||a.date>=todayStr);
+  const past=items.filter(a=>a.date&&a.date<todayStr);
+  const shown=tab==="upcoming"?upcoming:past;
+
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Announcements</h1>
         <button onClick={openNew} style={S.btn("gold")}>+ Post Announcement</button>
       </div>
+      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:`1px solid ${BRAND.border}`,paddingBottom:0}}>
+        {[{id:"upcoming",label:"📢 Upcoming",count:upcoming.length},{id:"past",label:"📋 Past",count:past.length}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"8px 16px",fontSize:12,fontWeight:700,border:"none",cursor:"pointer",background:"none",color:tab===t.id?BRAND.gold:BRAND.textSecondary,borderBottom:tab===t.id?`2px solid ${BRAND.gold}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
       {loading?<Spinner/>:(
         <div style={{display:"grid",gap:12}}>
-          {items.map(a=>(
+          {shown.map(a=>(
             <div key={a.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`}}>
               <div style={{display:"flex",gap:10,marginBottom:8,alignItems:"center"}}>
                 <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:colors[a.type]||"#222",color:tcolors[a.type]||"#aaa"}}>{a.type}</span>
@@ -940,10 +953,10 @@ function Announcements(){
                 </div>
               </div>
               <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
+              {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>}
             </div>
           ))}
-          {items.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements yet.</div>}
+          {shown.length===0&&<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements here.</div>}
         </div>
       )}
       {showForm&&(
@@ -1962,24 +1975,37 @@ function PlayerSchedule(){
 function PlayerAnnouncements(){
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
-  const tcolors={Practice:"#60a5fa",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
-  const colors={Practice:"#1e3a5f",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
-  useEffect(()=>{ supabase.from("announcements").select("*").order("created_at",{ascending:false}).then(({data})=>{ if(data)setItems(data); setLoading(false); }); },[]);
+  const [tab,setTab]=useState("upcoming");
+  const tcolors={Practice:"#60a5fa",Game:"#f472b6",Academic:"#4ade80",Social:"#fbbf24",Schedule:"#f87171",General:"#aaa"};
+  const colors={Practice:"#1e3a5f",Game:"#2d0a1a",Academic:"#1a3320",Social:"#2d1f00",Schedule:"#3d1515",General:"#2a2a2a"};
+  useEffect(()=>{ supabase.from("announcements").select("*").order("date",{ascending:false}).then(({data})=>{ if(data)setItems(data); setLoading(false); }); },[]);
+  const todayStr=new Date().toISOString().split("T")[0];
+  const upcoming=items.filter(a=>!a.date||a.date>=todayStr);
+  const past=items.filter(a=>a.date&&a.date<todayStr);
+  const shown=tab==="upcoming"?upcoming:past;
+  const AnnoCard=({a})=>(
+    <div style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`}}>
+      <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+        <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:colors[a.type]||"#222",color:tcolors[a.type]||"#aaa"}}>{a.type||"General"}</span>
+        <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date||""}</span>
+      </div>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
+      {a.body&&<div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>}
+    </div>
+  );
   return(
     <div>
-      <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Announcements</h1>
-      {loading?<Spinner/>:items.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements yet.</div>:(
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:16}}>Announcements</h1>
+      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:`1px solid ${BRAND.border}`,paddingBottom:0}}>
+        {[{id:"upcoming",label:"📢 Upcoming",count:upcoming.length},{id:"past",label:"📋 Past",count:past.length}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"8px 16px",fontSize:12,fontWeight:700,border:"none",cursor:"pointer",background:"none",color:tab===t.id?BRAND.gold:BRAND.textSecondary,borderBottom:tab===t.id?`2px solid ${BRAND.gold}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
+      {loading?<Spinner/>:shown.length===0?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No announcements here.</div>:(
         <div style={{display:"grid",gap:12}}>
-          {items.map(a=>(
-            <div key={a.id} style={{...S.card,marginBottom:0,borderLeft:`3px solid ${tcolors[a.type]||BRAND.crimson}`}}>
-              <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <span style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:colors[a.type]||"#222",color:tcolors[a.type]||"#aaa"}}>{a.type}</span>
-                <span style={{fontSize:12,color:BRAND.textSecondary}}>{a.date}</span>
-              </div>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{a.title}</div>
-              <div style={{fontSize:13,color:BRAND.textSecondary,lineHeight:1.6}}>{a.body}</div>
-            </div>
-          ))}
+          {shown.map(a=><AnnoCard key={a.id} a={a}/>)}
         </div>
       )}
     </div>
