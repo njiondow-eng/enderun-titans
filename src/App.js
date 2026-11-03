@@ -1774,23 +1774,21 @@ function PlayerSchedule(){
   const isPracticeUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return parseTime(p.time)>now.getHours()*60+now.getMinutes();};
 
   const upcomingPractices=practices.filter(isPracticeUpcoming).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")}));
-  const upcomingGames=games.filter(g=>g.date>=todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")}));
-  const pastAll=[
-    ...practices.filter(p=>!isPracticeUpcoming(p)).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
-    ...games.filter(g=>g.date<todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
-  ].sort((a,b)=>b._date-a._date);
+  const allGames=games.map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})).sort((a,b)=>b._date-a._date);
+  const upcomingGames=allGames.filter(g=>g.date>=todayStr);
+  const pastPractices=practices.filter(p=>!isPracticeUpcoming(p)).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})).sort((a,b)=>b._date-a._date);
 
   const kindColor={Practice:BRAND.textSecondary,"Game":BRAND.gold,"League Game":BRAND.crimsonLight};
   const kindBg={Practice:`${BRAND.border}55`,"Game":`${BRAND.gold}22`,"League Game":`${BRAND.crimson}33`};
   const barColor={Practice:BRAND.border,"Game":BRAND.gold,"League Game":BRAND.crimson};
 
   const leagueNames=leagues.map(l=>l.name);
-  const shown=tab==="practices"?upcomingPractices:tab==="games"?upcomingGames:pastAll;
+  const shown=tab==="practices"?upcomingPractices:tab==="games"?allGames:pastPractices;
 
   const TABS=[
     {id:"practices",label:"🏋️ Practices",count:upcomingPractices.length},
-    {id:"games",label:"🏀 Games",count:upcomingGames.length},
-    {id:"past",label:"📋 Past"},
+    {id:"games",label:"🏀 Games",count:allGames.length},
+    {id:"past",label:"📋 Past Practices",count:pastPractices.length},
   ];
 
   return(
