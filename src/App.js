@@ -1774,22 +1774,67 @@ function PlayerSchedule(){
   const isPracticeUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return parseTime(p.time)>now.getHours()*60+now.getMinutes();};
 
   const upcomingPractices=practices.filter(isPracticeUpcoming).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")}));
-  const allGames=games.map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})).sort((a,b)=>b._date-a._date);
-  const upcomingGames=allGames.filter(g=>g.date>=todayStr);
   const pastPractices=practices.filter(p=>!isPracticeUpcoming(p)).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})).sort((a,b)=>b._date-a._date);
 
-  const kindColor={Practice:BRAND.textSecondary,"Game":BRAND.gold,"League Game":BRAND.crimsonLight};
-  const kindBg={Practice:`${BRAND.border}55`,"Game":`${BRAND.gold}22`,"League Game":`${BRAND.crimson}33`};
-  const barColor={Practice:BRAND.border,"Game":BRAND.gold,"League Game":BRAND.crimson};
+  // Build tournament list from games data (union of db leagues + game types)
+  const tournamentNames=[...new Set(games.map(g=>g.type).filter(Boolean))];
+  const allTournaments=tournamentNames.length>0?tournamentNames:["All Games"];
 
-  const leagueNames=leagues.map(l=>l.name);
-  const shown=tab==="practices"?upcomingPractices:tab==="games"?allGames:pastPractices;
+  const [gameTournament,setGameTournament]=useState(null); // null = use first
+  const activeTournament=gameTournament||allTournaments[0]||"All Games";
+
+  const tourneyGames=tournamentNames.length>0
+    ?games.filter(g=>g.type===activeTournament)
+    :games;
+
+  const mkGame=g=>({...g,_date:new Date(g.date+"T00:00:00"),isPast:g.date<todayStr||(g.date===todayStr)});
+  const tourneyMapped=tourneyGames.map(mkGame).sort((a,b)=>a._date-b._date);
+  const tourneyPast=tourneyMapped.filter(g=>g.isPast).reverse();
+  const tourneyUpcoming=tourneyMapped.filter(g=>!g.isPast);
+
+  const played=tourneyPast.filter(g=>g.us!=null&&g.them!=null);
+  const wins=played.filter(g=>g.us>g.them).length;
+  const losses=played.length-wins;
+  const avgPts=played.length?Math.round(played.reduce((s,g)=>s+g.us,0)/played.length):null;
+  const avgOpp=played.length?Math.round(played.reduce((s,g)=>s+g.them,0)/played.length):null;
 
   const TABS=[
     {id:"practices",label:"🏋️ Practices",count:upcomingPractices.length},
-    {id:"games",label:"🏀 Games",count:allGames.length},
+    {id:"games",label:"🏀 Games",count:games.length},
     {id:"past",label:"📋 Past Practices",count:pastPractices.length},
   ];
+
+  const GameRow=({g,isPast})=>{
+    const hasResult=g.us!=null&&g.them!=null;
+    const won=g.us>g.them;
+    return(
+      <div style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:14,opacity:isPast?0.75:1}}>
+        <div style={{width:44,textAlign:"center",flexShrink:0}}>
+          <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase",fontWeight:600}}>{g._date.toLocaleString("en",{month:"short"})}</div>
+          <div style={{fontSize:22,fontWeight:800,color:isPast?(hasResult?(won?"#4ade80":BRAND.crimsonLight):BRAND.textSecondary):BRAND.gold,lineHeight:1}}>{g._date.getDate()}</div>
+          <div style={{fontSize:9,color:BRAND.textSecondary}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][g._date.getDay()]}</div>
+        </div>
+        <div style={{width:3,height:50,background:isPast?(hasResult?(won?"#4ade80":BRAND.crimson):BRAND.border):BRAND.gold,borderRadius:2,flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3,flexWrap:"wrap"}}>
+            {isPast&&hasResult&&(
+              <span style={{padding:"2px 10px",borderRadius:6,fontSize:11,fontWeight:800,background:won?"#4ade8022":"#9B1C1C33",color:won?"#4ade80":BRAND.crimsonLight}}>{won?"WIN":"LOSS"}</span>
+            )}
+            {!isPast&&<span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:`${BRAND.gold}22`,color:BRAND.gold}}>Upcoming</span>}
+            {isPast&&!hasResult&&<span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:`${BRAND.border}55`,color:BRAND.textSecondary}}>Pending</span>}
+          </div>
+          <div style={{fontWeight:700,fontSize:14}}>vs {g.opp||"TBD"}</div>
+          <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{[g.time,g.venue,g.home_away].filter(Boolean).join(" · ")}</div>
+        </div>
+        {isPast&&hasResult&&(
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:20,fontWeight:800,color:won?"#4ade80":BRAND.crimsonLight}}>{g.us}–{g.them}</div>
+            <div style={{fontSize:9,color:BRAND.textSecondary}}>{won?`+${g.us-g.them}`:`-${g.them-g.us}`} pts</div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return(
     <div>
@@ -1797,7 +1842,7 @@ function PlayerSchedule(){
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Team Schedule</h1>
       </div>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:`1px solid ${BRAND.border}`,paddingBottom:0}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"8px 16px",fontSize:12,fontWeight:700,border:"none",cursor:"pointer",background:"none",color:tab===t.id?BRAND.gold:BRAND.textSecondary,borderBottom:tab===t.id?`2px solid ${BRAND.gold}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>
@@ -1806,55 +1851,109 @@ function PlayerSchedule(){
         ))}
       </div>
 
-      {/* League overview pills — only on Games tab */}
-      {tab==="games"&&leagueNames.length>0&&(
-        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-          {leagueNames.map(name=>{
-            const lg=games.filter(g=>g.type===name);
-            const played=lg.filter(g=>g.us!=null&&g.them!=null);
-            const wins=played.filter(g=>g.us>g.them).length;
-            return(
-              <div key={name} style={{...S.card,marginBottom:0,padding:"8px 14px",display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:13}}>🏆</span>
-                <div>
-                  <div style={{fontSize:12,fontWeight:700,color:BRAND.gold}}>{name}</div>
-                  <div style={{fontSize:10,color:BRAND.textSecondary}}>{played.length?`${wins}W–${played.length-wins}L`:"Season ongoing"} · {lg.length} game{lg.length!==1?"s":""}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {loading?<Spinner/>:shown.length===0?(
-        <div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No events to show.</div>
-      ):(
-        <div style={{display:"grid",gap:10}}>
-          {shown.map((ev,i)=>{
-            const isPast=ev._date<today;
-            const hasResult=ev.us!=null&&ev.them!=null;
-            return(
-              <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:14,opacity:isPast?0.7:1}}>
-                <div style={{width:44,textAlign:"center",flexShrink:0}}>
-                  <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase",fontWeight:600}}>{ev._date.toLocaleString("en",{month:"short"})}</div>
-                  <div style={{fontSize:22,fontWeight:800,color:isPast?BRAND.textSecondary:kindColor[ev.kind]||BRAND.gold,lineHeight:1}}>{ev._date.getDate()}</div>
-                  <div style={{fontSize:9,color:BRAND.textSecondary}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][ev._date.getDay()]}</div>
-                </div>
-                <div style={{width:2,height:46,background:barColor[ev.kind]||BRAND.border,borderRadius:2,flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-                    <span style={{padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700,background:kindBg[ev.kind]||`${BRAND.border}55`,color:kindColor[ev.kind]||BRAND.textSecondary,whiteSpace:"nowrap"}}>{ev.kind}</span>
-                    {isPast&&hasResult&&<span style={{fontSize:11,fontWeight:700,color:ev.us>ev.them?"#4ade80":BRAND.crimsonLight}}>{ev.us>ev.them?"W":"L"} {ev.us}–{ev.them}</span>}
-                    {isPast&&!hasResult&&ev.kind!=="Practice"&&<span style={{fontSize:10,color:"#555"}}>No result</span>}
-                    {!isPast&&<span style={{fontSize:10,color:"#4ade80",fontWeight:600}}>Upcoming</span>}
+      {loading?<Spinner/>:(
+        <>
+          {/* PRACTICES TAB */}
+          {tab==="practices"&&(
+            upcomingPractices.length===0
+              ?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No upcoming practices.</div>
+              :<div style={{display:"grid",gap:10}}>
+                {upcomingPractices.map((ev,i)=>(
+                  <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:44,textAlign:"center",flexShrink:0}}>
+                      <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase",fontWeight:600}}>{ev._date.toLocaleString("en",{month:"short"})}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{ev._date.getDate()}</div>
+                      <div style={{fontSize:9,color:BRAND.textSecondary}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][ev._date.getDay()]}</div>
+                    </div>
+                    <div style={{width:2,height:46,background:BRAND.border,borderRadius:2,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{ev.title}</div>
+                      {ev.subtitle&&<div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{ev.subtitle}</div>}
+                    </div>
                   </div>
-                  <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
-                  {ev.subtitle&&<div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.subtitle}</div>}
-                </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
+          )}
+
+          {/* GAMES TAB */}
+          {tab==="games"&&(
+            <div>
+              {/* Tournament sub-tabs */}
+              {allTournaments.length>1&&(
+                <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+                  {allTournaments.map(name=>(
+                    <button key={name} onClick={()=>setGameTournament(name)} style={{padding:"6px 14px",fontSize:11,fontWeight:700,border:`1px solid ${activeTournament===name?BRAND.gold:BRAND.border}`,borderRadius:20,cursor:"pointer",background:activeTournament===name?`${BRAND.gold}22`:"none",color:activeTournament===name?BRAND.gold:BRAND.textSecondary,transition:"all 0.15s"}}>
+                      🏆 {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Tournament stats banner */}
+              {played.length>0&&(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
+                  {[
+                    {label:"Wins",value:wins,color:"#4ade80"},
+                    {label:"Losses",value:losses,color:BRAND.crimsonLight},
+                    {label:"Avg PTS",value:avgPts,color:BRAND.gold},
+                    {label:"Avg OPP",value:avgOpp,color:BRAND.textSecondary},
+                  ].map(s=>(
+                    <div key={s.label} style={{...S.card,marginBottom:0,textAlign:"center",padding:"10px 8px"}}>
+                      <div style={{fontSize:20,fontWeight:800,color:s.color}}>{s.value}</div>
+                      <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upcoming games */}
+              {tourneyUpcoming.length>0&&(
+                <>
+                  <div style={{fontSize:11,fontWeight:700,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Upcoming</div>
+                  <div style={{display:"grid",gap:8,marginBottom:16}}>
+                    {tourneyUpcoming.map((g,i)=><GameRow key={i} g={g} isPast={false}/>)}
+                  </div>
+                </>
+              )}
+
+              {/* Past games */}
+              {tourneyPast.length>0&&(
+                <>
+                  <div style={{fontSize:11,fontWeight:700,color:BRAND.textSecondary,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Results</div>
+                  <div style={{display:"grid",gap:8}}>
+                    {tourneyPast.map((g,i)=><GameRow key={i} g={g} isPast={true}/>)}
+                  </div>
+                </>
+              )}
+
+              {tourneyMapped.length===0&&(
+                <div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No games for this tournament.</div>
+              )}
+            </div>
+          )}
+
+          {/* PAST PRACTICES TAB */}
+          {tab==="past"&&(
+            pastPractices.length===0
+              ?<div style={{...S.card,textAlign:"center",color:BRAND.textSecondary}}>No past practices.</div>
+              :<div style={{display:"grid",gap:10}}>
+                {pastPractices.map((ev,i)=>(
+                  <div key={i} style={{...S.card,marginBottom:0,display:"flex",alignItems:"center",gap:14,opacity:0.7}}>
+                    <div style={{width:44,textAlign:"center",flexShrink:0}}>
+                      <div style={{fontSize:9,color:BRAND.textSecondary,textTransform:"uppercase",fontWeight:600}}>{ev._date.toLocaleString("en",{month:"short"})}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:BRAND.textSecondary,lineHeight:1}}>{ev._date.getDate()}</div>
+                      <div style={{fontSize:9,color:BRAND.textSecondary}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][ev._date.getDay()]}</div>
+                    </div>
+                    <div style={{width:2,height:46,background:BRAND.border,borderRadius:2,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{ev.title}</div>
+                      {ev.subtitle&&<div style={{fontSize:11,color:BRAND.textSecondary,marginTop:2}}>{ev.subtitle}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+          )}
+        </>
       )}
     </div>
   );
