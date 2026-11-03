@@ -1154,6 +1154,39 @@ function ConditioningDashboard({players,setPage}){
   );
 }
 
+// Bandeau "Recent Victory" — visible 7 jours après la victoire
+function RecentVictoryBanner({games}){
+  if(!games||!games.length) return null;
+  const wins=(games).filter(g=>g.us!=null&&g.them!=null&&g.us>g.them);
+  if(!wins.length) return null;
+  // Dernière victoire (tri par date desc)
+  const last=[...wins].sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const matchDate=new Date(last.date+"T00:00:00");
+  const diffDays=Math.floor((new Date()-matchDate)/(1000*60*60*24));
+  if(diffDays>7) return null;
+  const daysLeft=7-diffDays;
+  const opp=last.opponent||last.them_name||"Opponent";
+  return(
+    <div style={{marginTop:20,background:"linear-gradient(90deg,#0a1a0a,#122012,#0a1a0a)",border:"1px solid #4ade8055",borderRadius:8,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:18}}>🏀</span>
+        <div>
+          <span style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Recent Victory</span>
+          <div style={{fontSize:13,color:"#F0E6D0",fontWeight:600}}>
+            Titans <span style={{color:"#4ade80",fontWeight:800}}>{last.us}</span> – <span style={{color:"#f87171"}}>{last.them}</span> {opp}
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:11,color:"#888"}}>{last.date}</span>
+        <span style={{fontSize:10,color:"#4ade8088",border:"1px solid #4ade8033",borderRadius:12,padding:"2px 8px"}}>
+          {daysLeft===0?"Last day":"Expires in "+daysLeft+"d"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({players,loading,setPage}){
   const mob=useMobile();
   const [games,setGames]=useState([]);
@@ -1204,22 +1237,12 @@ function AdminDashboard({players,loading,setPage}){
 
   return(
     <div>
-      {/* 🏆 UNIGAMES Championship Banner */}
-      <div style={{background:"linear-gradient(135deg,#1a0a00,#2d1a00,#1a0a00)",border:"2px solid #D4A017",borderRadius:14,padding:"18px 24px",marginBottom:20,textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,rgba(212,160,23,0.18) 0%,transparent 70%)",pointerEvents:"none"}}/>
-        <div style={{fontSize:28,marginBottom:4}}>🏆👑🏆</div>
-        <div style={{fontSize:13,color:"#D4A017",letterSpacing:"0.18em",textTransform:"uppercase",fontWeight:700,marginBottom:4}}>Champions · 27th UNIGAMES 2026</div>
-        <div style={{fontSize:22,fontWeight:900,color:"#F0E6D0",letterSpacing:"0.04em",lineHeight:1.1}}>ENDERUN COLLEGES TITANS</div>
-        <div style={{fontSize:13,color:"#aaa",marginTop:6}}>Men's Basketball 5×5 &nbsp;|&nbsp; Final: <span style={{color:"#4ade80",fontWeight:700}}>79</span> – <span style={{color:"#f87171"}}>74</span> &nbsp;vs Colegio San Agustin-Bacolod</div>
-        <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:10,marginBottom:14,flexWrap:"wrap"}}>
-          {["🥇 1st Place","🏀 Men's Basketball","🎓 27th UNIGAMES"].map(t=>(
-            <span key={t} style={{background:"rgba(212,160,23,0.15)",border:"1px solid rgba(212,160,23,0.4)",borderRadius:20,padding:"3px 12px",fontSize:11,color:"#D4A017",fontWeight:600}}>{t}</span>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-          <img src="/unigames-team.png" alt="Titans Champions" style={{width:"48%",minWidth:140,maxWidth:280,borderRadius:10,border:"2px solid #D4A01788",objectFit:"cover",aspectRatio:"4/3"}}/>
-          <img src="/unigames-champ.png" alt="27th UNIGAMES Champions" style={{width:"48%",minWidth:140,maxWidth:280,borderRadius:10,border:"2px solid #D4A01788",objectFit:"cover",aspectRatio:"4/3"}}/>
-        </div>
+      {/* 🏆 UNIGAMES compact badge */}
+      <div style={{background:"linear-gradient(90deg,#1a0a00,#2d1a00,#1a0a00)",border:"1px solid #D4A017",borderRadius:8,padding:"7px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
+        <span style={{fontSize:16}}>🏆</span>
+        <span style={{fontSize:12,fontWeight:800,color:"#D4A017",letterSpacing:"0.08em",textTransform:"uppercase"}}>27th UNIGAMES Champions 2026</span>
+        <span style={{fontSize:12,color:"#aaa"}}>Men's Basketball · <span style={{color:"#4ade80",fontWeight:700}}>79</span>–<span style={{color:"#f87171"}}>74</span> vs CSA-Bacolod</span>
+        <span style={{fontSize:14}}>👑</span>
       </div>
       {/* Hero Banner */}
       <div style={{background:`linear-gradient(135deg,${BRAND.crimsonDark},${BRAND.charcoal})`,border:`1px solid ${BRAND.crimson}55`,borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
@@ -1403,6 +1426,7 @@ function AdminDashboard({players,loading,setPage}){
           <div style={{marginTop:10,fontSize:12,color:BRAND.textSecondary,textAlign:"center"}}>Draw plays · Add frame breakdown · Animate</div>
         </QuickCard>
       </div>
+      <RecentVictoryBanner games={played}/>
     </div>
   );
 }
@@ -1482,17 +1506,12 @@ function PlayerDashboard({player,players,setPage}){
 
   return(
     <div style={{width:"100%"}}>
-      {/* 🏆 UNIGAMES Championship Banner */}
-      <div style={{background:"linear-gradient(135deg,#1a0a00,#2d1a00,#1a0a00)",border:"2px solid #D4A017",borderRadius:14,padding:"16px 18px",marginBottom:16,textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,rgba(212,160,23,0.18) 0%,transparent 70%)",pointerEvents:"none"}}/>
-        <div style={{fontSize:22,marginBottom:2}}>🏆👑🏆</div>
-        <div style={{fontSize:11,color:"#D4A017",letterSpacing:"0.14em",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Champions · 27th UNIGAMES 2026</div>
-        <div style={{fontSize:17,fontWeight:900,color:"#F0E6D0",lineHeight:1.1}}>ENDERUN COLLEGES TITANS</div>
-        <div style={{fontSize:12,color:"#aaa",marginTop:4,marginBottom:12}}>Men's Basketball 5×5 &nbsp;|&nbsp; <span style={{color:"#4ade80",fontWeight:700}}>79</span> – <span style={{color:"#f87171"}}>74</span> &nbsp;vs CSA-Bacolod</div>
-        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-          <img src="/unigames-team.png" alt="Titans Champions" style={{width:"48%",minWidth:120,maxWidth:240,borderRadius:8,border:"2px solid #D4A01788",objectFit:"cover",aspectRatio:"4/3"}}/>
-          <img src="/unigames-champ.png" alt="27th UNIGAMES Champions" style={{width:"48%",minWidth:120,maxWidth:240,borderRadius:8,border:"2px solid #D4A01788",objectFit:"cover",aspectRatio:"4/3"}}/>
-        </div>
+      {/* 🏆 UNIGAMES compact badge */}
+      <div style={{background:"linear-gradient(90deg,#1a0a00,#2d1a00,#1a0a00)",border:"1px solid #D4A017",borderRadius:8,padding:"7px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
+        <span style={{fontSize:16}}>🏆</span>
+        <span style={{fontSize:12,fontWeight:800,color:"#D4A017",letterSpacing:"0.08em",textTransform:"uppercase"}}>27th UNIGAMES Champions 2026</span>
+        <span style={{fontSize:12,color:"#aaa"}}>Men's Basketball · <span style={{color:"#4ade80",fontWeight:700}}>79</span>–<span style={{color:"#f87171"}}>74</span> vs CSA-Bacolod</span>
+        <span style={{fontSize:14}}>👑</span>
       </div>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -1633,6 +1652,7 @@ function PlayerDashboard({player,players,setPage}){
           </div>
         </div>
       )}
+      <RecentVictoryBanner games={playedGames}/>
     </div>
   );
 }
