@@ -545,6 +545,7 @@ function AdminAttendance({players,readOnly=false}){
 function Practice({readOnly=false}){
   const [practices,setPractices]=useState([]);
   const [attHistory,setAttHistory]=useState([]);
+  const [allPlayers,setAllPlayers]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
@@ -556,12 +557,14 @@ function Practice({readOnly=false}){
   useEffect(()=>{ load(); },[]);
   const load=async()=>{
     setLoading(true);
-    const [pr,att]=await Promise.all([
+    const [pr,att,pl]=await Promise.all([
       supabase.from("practices").select("*").order("date",{ascending:true}),
-      supabase.from("attendance").select("*").eq("session_type","Practice"),
+      supabase.from("attendance").select("*").order("session_date",{ascending:false}),
+      supabase.from("players").select("id,name"),
     ]);
     if(pr.data) setPractices(pr.data);
     if(att.data) setAttHistory(att.data);
+    if(pl.data) setAllPlayers(pl.data);
     setLoading(false);
   };
 
@@ -614,9 +617,11 @@ function Practice({readOnly=false}){
           {shownP.map(p=>{
             const att=attForDate(p.date);
             const isExp=expandedP===p.id;
+            const sColors={Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"};
             return(
-              <div key={p.id} style={{...S.card,marginBottom:0,cursor:"pointer"}} onClick={()=>setExpandedP(isExp?null:p.id)}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+              <div key={p.id} style={{...S.card,marginBottom:0}}>
+                {/* Summary row — click to expand */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,cursor:"pointer"}} onClick={()=>setExpandedP(isExp?null:p.id)}>
                   <div style={{display:"flex",alignItems:"center",gap:16}}>
                     <div style={{width:48,textAlign:"center"}}>
                       <div style={{fontSize:10,color:BRAND.textSecondary,textTransform:"uppercase"}}>{fmtMonth(p.date)}</div>
@@ -626,18 +631,16 @@ function Practice({readOnly=false}){
                     <div>
                       <div style={{fontWeight:700,fontSize:15}}>{p.type}</div>
                       <div style={{fontSize:12,color:BRAND.textSecondary}}>{p.time} · {p.location}</div>
-                      {p.objectives&&<div style={{fontSize:12,color:BRAND.textSecondary}}>🎯 {p.objectives}</div>}
                     </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
                     {att?(
                       <div style={{textAlign:"right"}}>
                         <div style={{fontSize:22,fontWeight:800,color:attColor(att.pct),lineHeight:1}}>{att.pct}%</div>
-                        <div style={{fontSize:11,color:BRAND.textSecondary}}>Attendance</div>
-                        <div style={{fontSize:11,color:BRAND.textSecondary}}>{att.present}/{att.total} present</div>
+                        <div style={{fontSize:11,color:BRAND.textSecondary}}>{att.present}/{att.total} present · {isExp?"▲":"▼"}</div>
                       </div>
                     ):(
-                      practiceTab==="past"&&<div style={{fontSize:11,color:BRAND.textSecondary,fontStyle:"italic"}}>No record</div>
+                      <div style={{fontSize:11,color:BRAND.textSecondary,fontStyle:"italic"}}>{practiceTab==="past"?"No record":"—"}</div>
                     )}
                     {!readOnly&&<div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
                       <button onClick={()=>{setForm({...p});setEditing(p.id);setShowForm(true);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:12}}>✏️</button>
@@ -645,22 +648,32 @@ function Practice({readOnly=false}){
                     </div>}
                   </div>
                 </div>
-                {/* Attendance bar */}
-                {att&&(
-                  <div style={{marginTop:10}}>
-                    <div style={{height:6,borderRadius:4,background:"#333",overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${att.pct}%`,background:attColor(att.pct),borderRadius:4,transition:"width .4s"}}/>
+                {/* Attendance progress bar */}
+                {att&&<div style={{marginTop:8,height:5,borderRadius:3,background:"#333",overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${att.pct}%`,background:attColor(att.pct),borderRadius:3}}/>
+                </div>}
+                {/* Expanded player list */}
+                {isExp&&att&&(
+                  <div style={{marginTop:12,borderTop:"1px solid #333",paddingTop:12}}>
+                    <div style={{display:"flex",gap:12,marginBottom:10,flexWrap:"wrap"}}>
+                      {[["✅ Present",att.present,"#4ade80"],["⏰ Late",att.rows.filter(r=>r.status==="Late").length,"#facc15"],["📋 Excused",att.excused,"#60a5fa"],["❌ Absent",att.absent,"#f87171"]].map(([l,v,c])=>(
+                        <div key={l} style={{background:"#1e1e1e",borderRadius:8,padding:"6px 14px",textAlign:"center"}}>
+                          <span style={{fontSize:16,fontWeight:700,color:c}}>{v}</span>
+                          <span style={{fontSize:11,color:BRAND.textSecondary,marginLeft:6}}>{l}</span>
+                        </div>
+                      ))}
                     </div>
-                    {isExp&&(
-                      <div style={{marginTop:12,display:"flex",gap:16,flexWrap:"wrap"}}>
-                        {[["✅ Present",att.present,"#4ade80"],["⏰ Late",att.rows.filter(r=>r.status==="Late").length,"#facc15"],["📋 Excused",att.excused,"#60a5fa"],["❌ Absent",att.absent,"#f87171"]].map(([l,v,c])=>(
-                          <div key={l} style={{background:"#1e1e1e",borderRadius:8,padding:"8px 16px",minWidth:80,textAlign:"center"}}>
-                            <div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
-                            <div style={{fontSize:11,color:BRAND.textSecondary}}>{l}</div>
+                    <div style={{display:"grid",gap:6}}>
+                      {att.rows.map(r=>{
+                        const name=allPlayers.find(pl=>pl.id===r.player_id)?.name||"Unknown";
+                        return(
+                          <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:"#1a1a1a",borderRadius:6}}>
+                            <div style={{fontSize:13}}>{name}</div>
+                            <span style={{fontSize:12,fontWeight:600,color:sColors[r.status]||"#aaa",background:sColors[r.status]+"22",borderRadius:6,padding:"2px 10px"}}>{r.status}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
