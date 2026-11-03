@@ -558,9 +558,12 @@ function Practice({readOnly=false}){
 
   const del=async(id)=>{ if(!window.confirm("Delete?")) return; await supabase.from("practices").delete().eq("id",id); load(); };
 
-  const todayStr=new Date().toISOString().split("T")[0];
-  const upcomingP=practices.filter(p=>p.date>=todayStr);
-  const pastP=practices.filter(p=>p.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date));
+  const _now=new Date();
+  const todayStr=_now.toISOString().split("T")[0];
+  const _parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
+  const _isUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return _parseTime(p.time)>_now.getHours()*60+_now.getMinutes();};
+  const upcomingP=practices.filter(_isUpcoming);
+  const pastP=practices.filter(p=>!_isUpcoming(p)).sort((a,b)=>b.date.localeCompare(a.date));
   const shownP=practiceTab==="upcoming"?upcomingP:pastP;
 
   return(
