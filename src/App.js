@@ -70,7 +70,6 @@ const ADMIN_NAV = [
   { id:"attendance", label:"Attendance", icon:"✅" },
   { id:"practice", label:"Practice", icon:"🏋️" },
   { id:"league", label:"League", icon:"🏆" },
-  { id:"schedule", label:"Schedule", icon:"📅" },
   { id:"health", label:"Health Report", icon:"🏥" },
   { id:"playbook", label:"Playbook", icon:"📖" },
   { id:"announcements", label:"Announcements", icon:"📢" },
@@ -622,6 +621,7 @@ function League(){
   const [editingGame,setEditingGame]=useState(null);
   const [activeLeague,setActiveLeague]=useState(null);
   const [expandedLeague,setExpandedLeague]=useState(null);
+  const [leagueTab,setLeagueTab]=useState({});
   const [leagueName,setLeagueName]=useState("");
   const [saving,setSaving]=useState(false);
   const [form,setForm]=useState({date:"",time:"5:00 PM",opp:"",venue:"Enderun Gym",home_away:"Home",league_name:"",us:"",them:""});
@@ -724,15 +724,33 @@ function League(){
                 </div>
 
                 {/* Games List */}
-                {isExpanded&&(
+                {isExpanded&&(()=>{
+                  const todayStr=new Date().toISOString().split("T")[0];
+                  const upcomingGames=leagueGames.filter(g=>g.date>=todayStr);
+                  const pastGames=leagueGames.filter(g=>g.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date));
+                  const lt=leagueTab[league]||"upcoming";
+                  const shownGames=lt==="upcoming"?upcomingGames:pastGames;
+                  return(
                   <div style={{marginTop:16,borderTop:`1px solid ${BRAND.border}`,paddingTop:16}}>
+                    {/* Sub-tabs */}
+                    <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:`1px solid ${BRAND.border}`,paddingBottom:0}}>
+                      {[{id:"upcoming",label:"📅 Upcoming",count:upcomingGames.length},{id:"past",label:"📋 Results",count:pastGames.length}].map(t=>(
+                        <button key={t.id} onClick={()=>setLeagueTab(prev=>({...prev,[league]:t.id}))} style={{padding:"6px 14px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",background:"none",color:lt===t.id?BRAND.gold:BRAND.textSecondary,borderBottom:lt===t.id?`2px solid ${BRAND.gold}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>
+                          {t.label} ({t.count})
+                        </button>
+                      ))}
+                    </div>
                     {leagueGames.length===0?(
                       <div style={{textAlign:"center",color:BRAND.textSecondary,padding:"16px 0",fontSize:13}}>
                         No games added yet. Click "+ Add Game" above.
                       </div>
+                    ):shownGames.length===0?(
+                      <div style={{textAlign:"center",color:BRAND.textSecondary,padding:"16px 0",fontSize:13}}>
+                        No {lt==="upcoming"?"upcoming":"past"} games.
+                      </div>
                     ):(
                       <div style={{display:"grid",gap:10}}>
-                        {leagueGames.map(g=>{
+                        {shownGames.map(g=>{
                           const hasScore=g.us!==null&&g.them!==null;
                           const won=hasScore&&g.us>g.them;
                           return(
@@ -766,7 +784,8 @@ function League(){
                       </div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
@@ -2157,7 +2176,6 @@ export default function App(){
     attendance:<AdminAttendance players={players}/>,
     practice:<Practice/>,
     league:<League/>,
-    schedule:<PlayerSchedule/>,
     health:<AdminHealth players={players}/>,
     playbook:<Playbook isAdmin={true}/>,
     announcements:<Announcements/>,
