@@ -460,7 +460,9 @@ function Statistics({players}){
 function AdminAttendance({players,readOnly=false}){
   const mob=useMobile();
   const [marks,setMarks]=useState(()=>Object.fromEntries(players.map(p=>[p.id,"Present"])));
-  const [session,setSession]=useState({date:new Date().toISOString().split("T")[0],type:"Practice"});
+  const _nowAtt=new Date();
+  const _defTime=(()=>{let h=_nowAtt.getHours(),m=_nowAtt.getMinutes(),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;})();
+  const [session,setSession]=useState({date:_nowAtt.toISOString().split("T")[0],time:_defTime,type:"Practice"});
   const [history,setHistory]=useState([]);
   const [saved,setSaved]=useState(false);
   const [loading,setLoading]=useState(false);
@@ -477,7 +479,7 @@ function AdminAttendance({players,readOnly=false}){
   };
 
   const saveSession=async()=>{
-    const rows=players.map(p=>({player_id:p.id,session_date:session.date,session_type:session.type,status:marks[p.id]||"Present"}));
+    const rows=players.map(p=>({player_id:p.id,session_date:session.date,session_time:session.time,session_type:session.type,status:marks[p.id]||"Present"}));
     await supabase.from("attendance").insert(rows);
     setSaved(true); setTimeout(()=>setSaved(false),2000); loadHistory();
   };
@@ -494,6 +496,9 @@ function AdminAttendance({players,readOnly=false}){
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
           <span style={S.cardTitle}>Take Attendance</span>
           <input type="date" value={session.date} onChange={e=>setSession(s=>({...s,date:e.target.value}))} style={{...S.input,width:160}}/>
+          <select value={session.time} onChange={e=>setSession(s=>({...s,time:e.target.value}))} style={{...S.input,width:120}}>
+            {["5:00 AM","5:30 AM","6:00 AM","6:30 AM","7:00 AM","7:30 AM","8:00 AM","8:30 AM","9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM"].map(t=><option key={t}>{t}</option>)}
+          </select>
           <select value={session.type} onChange={e=>setSession(s=>({...s,type:e.target.value}))} style={{...S.input,width:160}}>
             {["Practice","Game","Film Session","Team Activity"].map(t=><option key={t}>{t}</option>)}
           </select>
@@ -519,11 +524,12 @@ function AdminAttendance({players,readOnly=false}){
         {loading?<Spinner/>:history.length===0?<div style={{color:BRAND.textSecondary,textAlign:"center",padding:20}}>No sessions saved yet.</div>:(
           <table style={S.table}>
             <thead><tr>
-              <th style={S.th}>Date</th><th style={S.th}>Type</th><th style={S.th}>Player</th><th style={S.th}>Status</th>
+              <th style={S.th}>Date</th><th style={S.th}>Time</th><th style={S.th}>Type</th><th style={S.th}>Player</th><th style={S.th}>Status</th>
             </tr></thead>
             <tbody>{history.slice(0,20).map(h=>(
               <tr key={h.id}>
                 <td style={S.td}>{h.session_date}</td>
+                <td style={S.td}>{h.session_time||"—"}</td>
                 <td style={S.td}>{h.session_type}</td>
                 <td style={S.td}>{players.find(p=>p.id===h.player_id)?.name||"—"}</td>
                 <td style={S.td}><span style={{...S.pill(h.status),color:{Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"}[h.status]}}>{h.status}</span></td>
