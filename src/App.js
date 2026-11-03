@@ -1283,8 +1283,11 @@ function PlayerDashboard({player,players,setPage}){
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
     ]).then(([p,g,l,a,ann])=>{
-      const todayStr=new Date().toISOString().split("T")[0];
-      setPractices((p.data||[]).filter(x=>x.date>=todayStr).slice(0,4));
+      const now=new Date();
+      const parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
+      const isPracticeUpcoming=x=>{const dt=new Date(x.date+"T00:00:00");const dStr=x.date;const todayStr=now.toISOString().split("T")[0];if(dStr>todayStr)return true;if(dStr<todayStr)return false;const mins=parseTime(x.time);const nowMins=now.getHours()*60+now.getMinutes();return mins>nowMins;};
+      const todayStr=now.toISOString().split("T")[0];
+      setPractices((p.data||[]).filter(isPracticeUpcoming).slice(0,4));
       setGames((g.data||[]).filter(x=>x.date>=todayStr));
       setLeagues(l.data||[]);
       setAttendance(a.data||[]);
@@ -1764,13 +1767,16 @@ function PlayerSchedule(){
     });
   },[]);
 
-  const todayStr=new Date().toISOString().split("T")[0];
+  const now=new Date();
+  const todayStr=now.toISOString().split("T")[0];
   const today=new Date(); today.setHours(0,0,0,0);
+  const parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
+  const isPracticeUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return parseTime(p.time)>now.getHours()*60+now.getMinutes();};
 
-  const upcomingPractices=practices.filter(p=>p.date>=todayStr).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")}));
+  const upcomingPractices=practices.filter(isPracticeUpcoming).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")}));
   const upcomingGames=games.filter(g=>g.date>=todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")}));
   const pastAll=[
-    ...practices.filter(p=>p.date<todayStr).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+    ...practices.filter(p=>!isPracticeUpcoming(p)).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
     ...games.filter(g=>g.date<todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
   ].sort((a,b)=>b._date-a._date);
 
