@@ -1283,8 +1283,9 @@ function PlayerDashboard({player,players,setPage}){
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
     ]).then(([p,g,l,a,ann])=>{
-      setPractices((p.data||[]).filter(x=>new Date(x.date+"T00:00:00")>=today).slice(0,4));
-      setGames(g.data||[]);
+      const todayStr=new Date().toISOString().split("T")[0];
+      setPractices((p.data||[]).filter(x=>x.date>=todayStr).slice(0,4));
+      setGames((g.data||[]).filter(x=>x.date>=todayStr));
       setLeagues(l.data||[]);
       setAttendance(a.data||[]);
       setAnnouncements(ann.data||[]);
@@ -1747,7 +1748,7 @@ function PlayerSchedule(){
   const [practices,setPractices]=useState([]);
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
-  const [filter,setFilter]=useState("all");
+  const [tab,setTab]=useState("practices");
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
@@ -1763,38 +1764,46 @@ function PlayerSchedule(){
     });
   },[]);
 
+  const todayStr=new Date().toISOString().split("T")[0];
   const today=new Date(); today.setHours(0,0,0,0);
 
-  const allItems=[
-    ...practices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
-    ...games.map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
-  ].sort((a,b)=>a._date-b._date);
+  const upcomingPractices=practices.filter(p=>p.date>=todayStr).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")}));
+  const upcomingGames=games.filter(g=>g.date>=todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")}));
+  const pastAll=[
+    ...practices.filter(p=>p.date<todayStr).map(p=>({...p,kind:"Practice",title:p.type||"Practice",subtitle:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+    ...games.filter(g=>g.date<todayStr).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,subtitle:[g.type,g.venue,g.home_away].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
+  ].sort((a,b)=>b._date-a._date);
 
   const kindColor={Practice:BRAND.textSecondary,"Game":BRAND.gold,"League Game":BRAND.crimsonLight};
   const kindBg={Practice:`${BRAND.border}55`,"Game":`${BRAND.gold}22`,"League Game":`${BRAND.crimson}33`};
   const barColor={Practice:BRAND.border,"Game":BRAND.gold,"League Game":BRAND.crimson};
 
-  const upcoming=allItems.filter(ev=>ev._date>=today);
-  const past=allItems.filter(ev=>ev._date<today);
-  const shown=filter==="upcoming"?upcoming:filter==="past"?past:allItems;
-
   const leagueNames=leagues.map(l=>l.name);
+  const shown=tab==="practices"?upcomingPractices:tab==="games"?upcomingGames:pastAll;
+
+  const TABS=[
+    {id:"practices",label:"🏋️ Practices",count:upcomingPractices.length},
+    {id:"games",label:"🏀 Games",count:upcomingGames.length},
+    {id:"past",label:"📋 Past"},
+  ];
 
   return(
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div style={{marginBottom:16}}>
         <h1 style={{fontSize:20,fontWeight:700,margin:0}}>Team Schedule</h1>
-        <div style={{display:"flex",gap:6}}>
-          {["all","upcoming","past"].map(f=>(
-            <button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",background:filter===f?BRAND.crimson:`${BRAND.border}55`,color:filter===f?"#fff":BRAND.textSecondary,textTransform:"capitalize"}}>
-              {f}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* League overview pills */}
-      {leagueNames.length>0&&(
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:`1px solid ${BRAND.border}`,paddingBottom:0}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"8px 16px",fontSize:12,fontWeight:700,border:"none",cursor:"pointer",background:"none",color:tab===t.id?BRAND.gold:BRAND.textSecondary,borderBottom:tab===t.id?`2px solid ${BRAND.gold}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>
+            {t.label}{t.count!=null?` (${t.count})`:""}
+          </button>
+        ))}
+      </div>
+
+      {/* League overview pills — only on Games tab */}
+      {tab==="games"&&leagueNames.length>0&&(
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
           {leagueNames.map(name=>{
             const lg=games.filter(g=>g.type===name);
