@@ -1204,6 +1204,19 @@ function AdminDashboard({players,loading,setPage}){
 
   return(
     <div>
+      {/* 🏆 UNIGAMES Championship Banner */}
+      <div style={{background:"linear-gradient(135deg,#1a0a00,#2d1a00,#1a0a00)",border:"2px solid #D4A017",borderRadius:14,padding:"18px 24px",marginBottom:20,textAlign:"center",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,rgba(212,160,23,0.18) 0%,transparent 70%)",pointerEvents:"none"}}/>
+        <div style={{fontSize:28,marginBottom:4}}>🏆👑🏆</div>
+        <div style={{fontSize:13,color:"#D4A017",letterSpacing:"0.18em",textTransform:"uppercase",fontWeight:700,marginBottom:4}}>Champions · 27th UNIGAMES 2026</div>
+        <div style={{fontSize:22,fontWeight:900,color:"#F0E6D0",letterSpacing:"0.04em",lineHeight:1.1}}>ENDERUN COLLEGES TITANS</div>
+        <div style={{fontSize:13,color:"#aaa",marginTop:6}}>Men's Basketball 5×5 &nbsp;|&nbsp; Final: <span style={{color:"#4ade80",fontWeight:700}}>79</span> – <span style={{color:"#f87171"}}>74</span> &nbsp;vs Colegio San Agustin-Bacolod</div>
+        <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
+          {["🥇 1st Place","🏀 Men's Basketball","🎓 27th UNIGAMES","🌟 Undefeated Run"].map(t=>(
+            <span key={t} style={{background:"rgba(212,160,23,0.15)",border:"1px solid rgba(212,160,23,0.4)",borderRadius:20,padding:"3px 12px",fontSize:11,color:"#D4A017",fontWeight:600}}>{t}</span>
+          ))}
+        </div>
+      </div>
       {/* Hero Banner */}
       <div style={{background:`linear-gradient(135deg,${BRAND.crimsonDark},${BRAND.charcoal})`,border:`1px solid ${BRAND.crimson}55`,borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
@@ -1465,6 +1478,14 @@ function PlayerDashboard({player,players,setPage}){
 
   return(
     <div style={{width:"100%"}}>
+      {/* 🏆 UNIGAMES Championship Banner */}
+      <div style={{background:"linear-gradient(135deg,#1a0a00,#2d1a00,#1a0a00)",border:"2px solid #D4A017",borderRadius:14,padding:"16px 18px",marginBottom:16,textAlign:"center",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 50% 0%,rgba(212,160,23,0.18) 0%,transparent 70%)",pointerEvents:"none"}}/>
+        <div style={{fontSize:22,marginBottom:2}}>🏆👑🏆</div>
+        <div style={{fontSize:11,color:"#D4A017",letterSpacing:"0.14em",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Champions · 27th UNIGAMES 2026</div>
+        <div style={{fontSize:17,fontWeight:900,color:"#F0E6D0",lineHeight:1.1}}>ENDERUN COLLEGES TITANS</div>
+        <div style={{fontSize:12,color:"#aaa",marginTop:4}}>Men's Basketball 5×5 &nbsp;|&nbsp; <span style={{color:"#4ade80",fontWeight:700}}>79</span> – <span style={{color:"#f87171"}}>74</span> &nbsp;vs CSA-Bacolod</div>
+      </div>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div>
