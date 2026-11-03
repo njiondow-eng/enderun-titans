@@ -1461,9 +1461,9 @@ function PlayerDashboard({player,players,setPage}){
 
   if(loading) return <Spinner/>;
 
-  // Time-aware upcoming filter — recalculated each render
+  // Time-aware upcoming filter — recalculated each render (local date, not UTC)
   const _pNow=new Date();
-  const _pTodayStr=_pNow.toISOString().split("T")[0];
+  const _pTodayStr=`${_pNow.getFullYear()}-${String(_pNow.getMonth()+1).padStart(2,"0")}-${String(_pNow.getDate()).padStart(2,"0")}`;
   const _pNowMins=_pNow.getHours()*60+_pNow.getMinutes();
   const _parseT=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
   const _isPUp=x=>{if(x.date>_pTodayStr)return true;if(x.date<_pTodayStr)return false;return _parseT(x.time)>_pNowMins;};
@@ -1947,7 +1947,8 @@ function PlayerSchedule(){
   },[]);
 
   const now=new Date();
-  const todayStr=now.toISOString().split("T")[0];
+  const _y=now.getFullYear(),_m=String(now.getMonth()+1).padStart(2,"0"),_d=String(now.getDate()).padStart(2,"0");
+  const todayStr=`${_y}-${_m}-${_d}`;
   const today=new Date(); today.setHours(0,0,0,0);
   const parseTime=t=>{if(!t)return 0;const m=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(!m)return 0;let[,h,min,ap]=m;h=parseInt(h);min=parseInt(min);if(ap.toUpperCase()==="PM"&&h!==12)h+=12;if(ap.toUpperCase()==="AM"&&h===12)h=0;return h*60+min;};
   const isPracticeUpcoming=p=>{if(p.date>todayStr)return true;if(p.date<todayStr)return false;return parseTime(p.time)>now.getHours()*60+now.getMinutes();};
