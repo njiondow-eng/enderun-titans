@@ -67,6 +67,7 @@ const ADMIN_NAV = [
   { id:"dashboard", label:"Dashboard", icon:"🏠" },
   { id:"roster", label:"Roster", icon:"👥" },
   { id:"stats", label:"Statistics", icon:"📊" },
+  { id:"gamestats", label:"Game Stats", icon:"🎯" },
   { id:"attendance", label:"Attendance", icon:"✅" },
   { id:"practice", label:"Practice", icon:"🏋️" },
   { id:"league", label:"League", icon:"🏆" },
@@ -412,6 +413,165 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminGameStats({players,loadPlayers}){
+  const [games,setGames]=useState([]);
+  const [selectedGame,setSelectedGame]=useState(null);
+  const [existingStats,setExistingStats]=useState({});
+  const [rows,setRows]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    supabase.from("games").select("*").order("date",{ascending:false}).then(({data})=>{
+      const played=(data||[]).filter(g=>g.us!=null&&g.them!=null);
+      setGames(played);
+      if(played.length>0) setSelectedGame(played[0]);
+      setLoading(false);
+    });
+  },[]);
+
+  useEffect(()=>{
+    if(!selectedGame) return;
+    supabase.from("game_stats").select("*").eq("game_id",selectedGame.id).then(({data})=>{
+      const map={};
+      (data||[]).forEach(s=>{ map[s.player_id]=s; });
+      setExistingStats(map);
+      // init rows from existing stats or blank
+      const init={};
+      players.forEach(p=>{
+        const ex=map[p.id];
+        init[p.id]=ex?{pts:ex.pts??0,reb:ex.reb??0,ast:ex.ast??0,stl:ex.stl??0,blk:ex.blk??0,to_:ex.to_??0,fgm:ex.fgm??0,fga:ex.fga??0,tpm:ex.tpm??0,tpa:ex.tpa??0,ftm:ex.ftm??0,fta:ex.fta??0,minutes:ex.minutes??0,plus_minus:ex.plus_minus??0,played:true}:{pts:0,reb:0,ast:0,stl:0,blk:0,to_:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,minutes:0,plus_minus:0,played:false};
+      });
+      setRows(init);
+    });
+  },[selectedGame,players]);
+
+  const setVal=(pid,field,val)=>setRows(r=>({...r,[pid]:{...r[pid],[field]:val===""?"":Number(val)}}));
+
+  const saveStats=async()=>{
+    if(!selectedGame) return;
+    setSaving(true);
+    const activePlayers=players.filter(p=>rows[p.id]?.played);
+    // upsert game_stats
+    for(const p of activePlayers){
+      const r=rows[p.id];
+      const payload={game_id:selectedGame.id,player_id:p.id,pts:r.pts||0,reb:r.reb||0,ast:r.ast||0,stl:r.stl||0,blk:r.blk||0,to_:r.to_||0,fgm:r.fgm||0,fga:r.fga||0,tpm:r.tpm||0,tpa:r.tpa||0,ftm:r.ftm||0,fta:r.fta||0,minutes:r.minutes||0,plus_minus:r.plus_minus||0};
+      if(existingStats[p.id]){
+        await supabase.from("game_stats").update(payload).eq("id",existingStats[p.id].id);
+      } else {
+        await supabase.from("game_stats").insert([payload]);
+      }
+    }
+    // recalculate player averages from all game_stats
+    const {data:allStats}=await supabase.from("game_stats").select("*");
+    const byPlayer={};
+    (allStats||[]).forEach(s=>{
+      if(!byPlayer[s.player_id]) byPlayer[s.player_id]=[];
+      byPlayer[s.player_id].push(s);
+    });
+    for(const [pidStr,stats] of Object.entries(byPlayer)){
+      const pid=parseInt(pidStr);
+      const gp=stats.length;
+      const avg=f=>Math.round((stats.reduce((s,x)=>s+(x[f]||0),0)/gp)*10)/10;
+      const fgPct=stats.reduce((s,x)=>s+(x.fga||0),0)>0?Math.round(stats.reduce((s,x)=>s+(x.fgm||0),0)/stats.reduce((s,x)=>s+(x.fga||0),0)*1000)/10:0;
+      const tpPct=stats.reduce((s,x)=>s+(x.tpa||0),0)>0?Math.round(stats.reduce((s,x)=>s+(x.tpm||0),0)/stats.reduce((s,x)=>s+(x.tpa||0),0)*1000)/10:0;
+      const ftPct=stats.reduce((s,x)=>s+(x.fta||0),0)>0?Math.round(stats.reduce((s,x)=>s+(x.ftm||0),0)/stats.reduce((s,x)=>s+(x.fta||0),0)*1000)/10:0;
+      await supabase.from("players").update({gp,pts:avg("pts"),reb:avg("reb"),ast:avg("ast"),stl:avg("stl"),blk:avg("blk"),to_:avg("to_"),plus_minus:Math.round(stats.reduce((s,x)=>s+(x.plus_minus||0),0)/gp),fg:fgPct,threept:tpPct,ft:ftPct}).eq("id",pid);
+    }
+    await loadPlayers();
+    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500);
+  };
+
+  const mob=useMobile();
+  const statFields=[{k:"pts",l:"PTS",w:52},{k:"reb",l:"REB",w:52},{k:"ast",l:"AST",w:52},{k:"stl",l:"STL",w:52},{k:"blk",l:"BLK",w:52},{k:"to_",l:"TO",w:52},{k:"fgm",l:"FGM",w:52},{k:"fga",l:"FGA",w:52},{k:"tpm",l:"3PM",w:52},{k:"tpa",l:"3PA",w:52},{k:"ftm",l:"FTM",w:52},{k:"fta",l:"FTA",w:52},{k:"minutes",l:"MIN",w:52},{k:"plus_minus",l:"+/-",w:60}];
+
+  if(loading) return <div style={{color:BRAND.textSecondary,padding:24}}>Loading games…</div>;
+  if(games.length===0) return <div style={{color:BRAND.textSecondary,padding:24}}>No completed games found. Enter game scores first.</div>;
+
+  return(
+    <div>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:16}}>📊 Game Stats Entry</h1>
+      {/* Game selector */}
+      <div style={S.card}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:10}}>Select Game</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {games.map(g=>{
+            const isSel=selectedGame?.id===g.id;
+            const won=g.us>g.them;
+            return(
+              <button key={g.id} onClick={()=>setSelectedGame(g)} style={{...S.btn(isSel?"primary":"secondary"),padding:"7px 14px",textAlign:"left"}}>
+                <span style={{fontSize:11,color:isSel?BRAND.black:BRAND.textSecondary,display:"block"}}>{g.date}</span>
+                <span style={{fontSize:13,fontWeight:700}}>{g.opp||"vs Opponent"}</span>
+                <span style={{marginLeft:8,fontSize:12,color:won?"#4ade80":"#f87171"}}>{g.us}–{g.them}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedGame&&(
+        <div style={S.card}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+            <div>
+              <span style={{fontSize:15,fontWeight:700}}>vs {selectedGame.opp||"Opponent"}</span>
+              <span style={{marginLeft:10,fontSize:13,color:selectedGame.us>selectedGame.them?"#4ade80":"#f87171",fontWeight:700}}>
+                {selectedGame.us}–{selectedGame.them} {selectedGame.us>selectedGame.them?"W":"L"}
+              </span>
+              <span style={{marginLeft:8,fontSize:12,color:BRAND.textSecondary}}>{selectedGame.date}</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:11,color:BRAND.textSecondary}}>✓ = played this game</span>
+              <button onClick={saveStats} disabled={saving} style={{...S.btn("primary"),padding:"8px 20px",opacity:saving?0.6:1}}>
+                {saving?"Saving…":saved?"✓ Saved!":"Save Stats"}
+              </button>
+            </div>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{...S.table,minWidth:900}}>
+              <thead><tr>
+                <th style={{...S.th,position:"sticky",left:0,background:BRAND.surfaceLight,zIndex:2,minWidth:140}}>Player</th>
+                <th style={{...S.th,width:40}}>✓</th>
+                {statFields.map(f=><th key={f.k} style={{...S.th,minWidth:f.w,textAlign:"center"}}>{f.l}</th>)}
+              </tr></thead>
+              <tbody>{players.filter(p=>p.status==="Active").map(p=>{
+                const row=rows[p.id]||{played:false};
+                const inp=(field)=>(
+                  <input type="number" min="0" value={row[field]??0} disabled={!row.played}
+                    onChange={e=>setVal(p.id,field,e.target.value)}
+                    style={{width:"100%",background:row.played?"#1a2a1a":"#111",border:`1px solid ${row.played?BRAND.border+"88":"#222"}`,borderRadius:4,padding:"3px 4px",color:row.played?BRAND.textPrimary:BRAND.textSecondary,fontSize:12,textAlign:"center",outline:"none"}}/>
+                );
+                return(
+                  <tr key={p.id} style={{opacity:row.played?1:0.45}}>
+                    <td style={{...S.td,position:"sticky",left:0,background:row.played?"#0d1a0d":BRAND.surfaceLight,zIndex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7}}>
+                        <Avatar initials={p.photo||"??"} size={24}/>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:600}}>{p.name?.split(" ").slice(-1)[0]}</div>
+                          <div style={{fontSize:10,color:BRAND.textSecondary}}>#{p.jersey} {p.pos}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{...S.td,textAlign:"center"}}>
+                      <input type="checkbox" checked={!!row.played} onChange={e=>setRows(r=>({...r,[p.id]:{...r[p.id],played:e.target.checked}}))} style={{width:16,height:16,cursor:"pointer"}}/>
+                    </td>
+                    {statFields.map(f=><td key={f.k} style={{...S.td,padding:"4px 3px"}}>{inp(f.k)}</td>)}
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+          <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
+            <button onClick={saveStats} disabled={saving} style={{...S.btn("primary"),padding:"9px 28px",opacity:saving?0.6:1}}>
+              {saving?"Saving…":saved?"✓ Stats Saved!":"💾 Save & Update Averages"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2320,6 +2480,7 @@ export default function App(){
     dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
     roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading}/>,
     stats:<Statistics players={players}/>,
+    gamestats:<AdminGameStats players={players} loadPlayers={loadPlayers}/>,
     attendance:<AdminAttendance players={players}/>,
     practice:<Practice/>,
     league:<League/>,
