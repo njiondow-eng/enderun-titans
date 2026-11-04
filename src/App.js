@@ -1609,7 +1609,8 @@ function PlayerDashboard({player,players,setPage}){
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
     ]).then(([p,g,l,a,ann])=>{
-      const todayStr=new Date().toISOString().split("T")[0];
+      const _n=new Date();
+      const todayStr=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,"0")}-${String(_n.getDate()).padStart(2,"0")}`;
       setPractices(p.data||[]);
       setGames((g.data||[]).filter(x=>x.date>=todayStr));
       setLeagues(l.data||[]);
@@ -1633,7 +1634,7 @@ function PlayerDashboard({player,players,setPage}){
   const playedGames=games.filter(g=>g.us!=null&&g.them!=null);
   const wins=playedGames.filter(g=>g.us>g.them).length;
   const losses=playedGames.filter(g=>g.us<g.them).length;
-  const upcomingGames=games.filter(g=>new Date(g.date+"T00:00:00")>=today);
+  const upcomingGames=games.filter(g=>(g.us==null||g.them==null)&&new Date(g.date+"T00:00:00")>=today);
 
   const activePlayers=players.filter(p=>p.status==="Active"&&p.pts!=null);
   const teamAvg=activePlayers.length?{
@@ -1773,7 +1774,7 @@ function PlayerDashboard({player,players,setPage}){
           const lgGames=games.filter(g=>g.type===lg.name);
           const played=lgGames.filter(g=>g.us!=null&&g.them!=null);
           const lgWins=played.filter(g=>g.us>g.them).length;
-          const lgNext=lgGames.filter(g=>new Date(g.date+"T00:00:00")>=today).slice(0,2);
+          const lgNext=lgGames.filter(g=>(g.us==null||g.them==null)&&new Date(g.date+"T00:00:00")>=today).slice(0,2);
           return(
             <div key={lg.id} style={{marginBottom:li<leagues.length-1?12:0,paddingBottom:li<leagues.length-1?12:0,borderBottom:li<leagues.length-1?"1px solid #1a1a1a":"none"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
