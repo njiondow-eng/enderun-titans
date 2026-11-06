@@ -438,6 +438,15 @@ function AdminGameStats({players,loadPlayers}){
 
   useEffect(()=>{
     if(!selectedGame) return;
+    // Load team_game_stats for selected game
+    supabase.from("team_game_stats").select("*").eq("game_id",selectedGame.id).single().then(({data})=>{
+      if(data) setTeamExtra({pts_from_to:data.pts_from_to||0,pts_in_paint:data.pts_in_paint||0,second_chance:data.second_chance||0,fast_break:data.fast_break||0,bench_pts:data.bench_pts||0,biggest_lead:data.biggest_lead||0,biggest_run:data.biggest_run||0});
+      else setTeamExtra({pts_from_to:0,pts_in_paint:0,second_chance:0,fast_break:0,bench_pts:0,biggest_lead:0,biggest_run:0});
+    });
+  },[selectedGame]);
+
+  useEffect(()=>{
+    if(!selectedGame) return;
     supabase.from("game_stats").select("*").eq("game_id",selectedGame.id).then(({data})=>{
       const map={};
       (data||[]).forEach(s=>{ map[s.player_id]=s; });
@@ -484,6 +493,8 @@ function AdminGameStats({players,loadPlayers}){
       const ftPct=stats.reduce((s,x)=>s+(x.fta||0),0)>0?Math.round(stats.reduce((s,x)=>s+(x.ftm||0),0)/stats.reduce((s,x)=>s+(x.fta||0),0)*1000)/10:0;
       await supabase.from("players").update({gp,pts:avg("pts"),reb:avg("reb"),ast:avg("ast"),stl:avg("stl"),blk:avg("blk"),to_:avg("to_"),plus_minus:Math.round(stats.reduce((s,x)=>s+(x.plus_minus||0),0)/gp),fg:fgPct,threept:tpPct,ft:ftPct}).eq("id",pid);
     }
+    // save team_game_stats
+    await supabase.from("team_game_stats").upsert({game_id:selectedGame.id,...teamExtra},{onConflict:"game_id"});
     await loadPlayers();
     setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500);
   };
@@ -556,16 +567,24 @@ function AdminGameStats({players,loadPlayers}){
             {statBox(`${totFtm}/${totFta}`,"FT")}
             {statBox(`${ftPct}%`,"FT%")}
           </div>
-          <div style={{borderTop:`1px solid #2a2a3a`,paddingTop:12}}>
-            <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:10,fontWeight:600}}>Manual entries (from official box score)</div>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-              {exInp("pts_from_to","Pts from\nTurnovers")}
-              {exInp("pts_in_paint","Pts in\nthe Paint")}
-              {exInp("second_chance","2nd Chance\nPoints")}
-              {exInp("fast_break","Fast Break\nPoints")}
-              {exInp("bench_pts","Bench\nPoints")}
-              {exInp("biggest_lead","Biggest\nLead")}
-              {exInp("biggest_run","Biggest\nScoring Run")}
+          <div style={{borderTop:`1px solid #2a2a3a`,paddingTop:12,marginTop:4}}>
+            <div style={{background:"#9B1C1C",borderRadius:6,padding:"10px 16px",display:"flex",gap:24,flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"#fff",letterSpacing:"0.06em",whiteSpace:"nowrap"}}>TEAM STATISTICS:</span>
+              {[
+                ["Points from turnovers:",teamExtra.pts_from_to,"pts_from_to"],
+                ["Points in the paint:",teamExtra.pts_in_paint,"pts_in_paint"],
+                ["Second chance points:",teamExtra.second_chance,"second_chance"],
+                ["Fast break points:",teamExtra.fast_break,"fast_break"],
+                ["Bench points:",teamExtra.bench_pts,"bench_pts"],
+                ["Biggest Lead:",teamExtra.biggest_lead,"biggest_lead"],
+                ["Biggest Scoring Run:",teamExtra.biggest_run,"biggest_run"],
+              ].map(([label,val,field])=>(
+                <span key={field} style={{fontSize:12,color:"#fff",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
+                  <span style={{fontWeight:400,opacity:0.9}}>{label}</span>
+                  <input type="number" min="0" value={val||0} onChange={e=>setTeamExtra(x=>({...x,[field]:Number(e.target.value)}))}
+                    style={{width:40,background:"transparent",border:"none",borderBottom:"1px solid rgba(255,255,255,0.4)",color:"#fff",fontWeight:700,fontSize:13,textAlign:"center",outline:"none",padding:"0 2px"}}/>
+                </span>
+              ))}
             </div>
           </div>
         </div>
