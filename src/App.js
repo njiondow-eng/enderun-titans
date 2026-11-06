@@ -1053,9 +1053,10 @@ function League(){
 
                 {/* Games List */}
                 {isExpanded&&(()=>{
-                  const todayStr=new Date().toISOString().split("T")[0];
-                  const upcomingGames=leagueGames.filter(g=>g.date>=todayStr);
-                  const pastGames=leagueGames.filter(g=>g.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date));
+                  const _tn=new Date();
+                  const todayStr=`${_tn.getFullYear()}-${String(_tn.getMonth()+1).padStart(2,"0")}-${String(_tn.getDate()).padStart(2,"0")}`;
+                  const upcomingGames=leagueGames.filter(g=>(g.us==null||g.them==null)&&g.date>=todayStr);
+                  const pastGames=leagueGames.filter(g=>(g.us!=null&&g.them!=null)||g.date<todayStr).sort((a,b)=>b.date.localeCompare(a.date));
                   const lt=leagueTab[league]||"upcoming";
                   const shownGames=lt==="upcoming"?upcomingGames:pastGames;
                   return(
