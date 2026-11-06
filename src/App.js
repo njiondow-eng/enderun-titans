@@ -1689,7 +1689,7 @@ function PlayerDashboard({player,players,setPage}){
       const _n=new Date();
       const todayStr=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,"0")}-${String(_n.getDate()).padStart(2,"0")}`;
       setPractices(p.data||[]);
-      setGames((g.data||[]).filter(x=>x.date>=todayStr));
+      setGames(g.data||[]);
       setLeagues(l.data||[]);
       setAttendance(a.data||[]);
       setAnnouncements(ann.data||[]);
@@ -1817,7 +1817,7 @@ function PlayerDashboard({player,players,setPage}){
         </div>
         {(()=>{
           const upcoming=[
-            ...upcomingPractices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",sub:[p.time,p.location].filter(Boolean).join(" · "),_date:new Date(p.date+"T00:00:00")})),
+            ...upcomingPractices.map(p=>({...p,kind:"Practice",title:p.type||"Practice",sub:[p.time,p.location].filter(Boolean).join(" · "),notes:p.notes||p.objectives||"",_date:new Date(p.date+"T00:00:00")})),
             ...upcomingGames.slice(0,5).map(g=>({...g,kind:g.type?"League Game":"Game",title:`vs ${g.opp||"TBD"}`,sub:[g.type,g.venue].filter(Boolean).join(" · "),_date:new Date(g.date+"T00:00:00")})),
           ].sort((a,b)=>a._date-b._date).slice(0,6);
           if(upcoming.length===0) return <div style={{fontSize:12,color:BRAND.textSecondary}}>No upcoming events scheduled.</div>;
@@ -1836,6 +1836,7 @@ function PlayerDashboard({player,players,setPage}){
                   </div>
                   <div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ev.title}</div>
                   {ev.sub&&<div style={{fontSize:11,color:BRAND.textSecondary}}>{ev.sub}</div>}
+                  {ev.notes&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📝 {ev.notes}</div>}
                 </div>
               </div>
             );
