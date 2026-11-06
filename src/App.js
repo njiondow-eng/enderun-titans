@@ -425,6 +425,7 @@ function AdminGameStats({players,loadPlayers}){
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
   const [loading,setLoading]=useState(true);
+  const [teamExtra,setTeamExtra]=useState({pts_from_to:0,pts_in_paint:0,second_chance:0,fast_break:0,bench_pts:0,biggest_lead:0,biggest_run:0});
 
   useEffect(()=>{
     supabase.from("games").select("*").order("date",{ascending:false}).then(({data})=>{
@@ -514,7 +515,62 @@ function AdminGameStats({players,loadPlayers}){
         </div>
       </div>
 
-      {selectedGame&&(
+      {selectedGame&&(()=>{
+        // Compute team totals from current rows in real time
+        const activePRows=Object.entries(rows).filter(([,r])=>r.played).map(([,r])=>r);
+        const sum=f=>activePRows.reduce((s,r)=>s+(Number(r[f])||0),0);
+        const totPts=sum("pts"), totReb=sum("reb"), totAst=sum("ast"), totStl=sum("stl"), totBlk=sum("blk"), totTo=sum("to_");
+        const totFgm=sum("fgm"), totFga=sum("fga"), totTpm=sum("tpm"), totTpa=sum("tpa"), totFtm=sum("ftm"), totFta=sum("fta");
+        const fgPct=totFga>0?((totFgm/totFga)*100).toFixed(1):"0.0";
+        const tpPct=totTpa>0?((totTpm/totTpa)*100).toFixed(1):"0.0";
+        const ftPct=totFta>0?((totFtm/totFta)*100).toFixed(1):"0.0";
+        const exInp=(field,label)=>(
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+            <span style={{fontSize:10,color:BRAND.textSecondary,textAlign:"center",lineHeight:1.2}}>{label}</span>
+            <input type="number" min="0" value={teamExtra[field]||0} onChange={e=>setTeamExtra(x=>({...x,[field]:Number(e.target.value)}))}
+              style={{width:56,background:"#1a1a2a",border:`1px solid ${BRAND.border}88`,borderRadius:4,padding:"4px",color:"#c4b5fd",fontSize:13,fontWeight:700,textAlign:"center",outline:"none"}}/>
+          </div>
+        );
+        const statBox=(val,label,color="#D4A017")=>(
+          <div style={{textAlign:"center",padding:"8px 12px",background:"#111",borderRadius:8,minWidth:70}}>
+            <div style={{fontSize:18,fontWeight:800,color}}>{val}</div>
+            <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2,lineHeight:1.2}}>{label}</div>
+          </div>
+        );
+        return(<>
+        {/* Team Statistics Summary */}
+        <div style={{...S.card,borderColor:"#2a2a3a"}}>
+          <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#a78bfa",marginBottom:14}}>📋 Team Statistics — vs {selectedGame.opp}</div>
+          {/* Auto-calculated totals */}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+            {statBox(totPts,"PTS",selectedGame.us>selectedGame.them?"#4ade80":"#f87171")}
+            {statBox(totReb,"REB")}
+            {statBox(totAst,"AST")}
+            {statBox(totStl,"STL")}
+            {statBox(totBlk,"BLK")}
+            {statBox(totTo,"TO","#f87171")}
+            {statBox(`${totFgm}/${totFga}`,"FG")}
+            {statBox(`${fgPct}%`,"FG%")}
+            {statBox(`${totTpm}/${totTpa}`,"3PT")}
+            {statBox(`${tpPct}%`,"3PT%")}
+            {statBox(`${totFtm}/${totFta}`,"FT")}
+            {statBox(`${ftPct}%`,"FT%")}
+          </div>
+          <div style={{borderTop:`1px solid #2a2a3a`,paddingTop:12}}>
+            <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:10,fontWeight:600}}>Manual entries (from official box score)</div>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              {exInp("pts_from_to","Pts from\nTurnovers")}
+              {exInp("pts_in_paint","Pts in\nthe Paint")}
+              {exInp("second_chance","2nd Chance\nPoints")}
+              {exInp("fast_break","Fast Break\nPoints")}
+              {exInp("bench_pts","Bench\nPoints")}
+              {exInp("biggest_lead","Biggest\nLead")}
+              {exInp("biggest_run","Biggest\nScoring Run")}
+            </div>
+          </div>
+        </div>
+
+        {/* Player stats table */}
         <div style={S.card}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
             <div>
@@ -571,7 +627,8 @@ function AdminGameStats({players,loadPlayers}){
             </button>
           </div>
         </div>
-      )}
+        </>);
+      })()}
     </div>
   );
 }
