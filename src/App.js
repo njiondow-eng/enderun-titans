@@ -2014,18 +2014,92 @@ function MyProfile({player,loadPlayers}){
 
 function MyStats({player:p}){
   const mob=useMobile();
+  const [gameLogs,setGameLogs]=useState([]);
+  const [loadingLogs,setLoadingLogs]=useState(true);
+
+  useEffect(()=>{
+    if(!p?.id) return;
+    supabase.from("game_stats").select("*,games(date,opp,us,them,type)").eq("player_id",p.id).order("game_id",{ascending:false}).then(({data})=>{
+      setGameLogs(data||[]);
+      setLoadingLogs(false);
+    });
+  },[p?.id]);
+
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:20}}>My Statistics</h1>
-      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:12,marginBottom:18}}>
+      {/* Season Averages */}
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:10}}>Season Averages · {p.gp||0} GP</div>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(3,1fr)",gap:12,marginBottom:12}}>
         {[["PTS",p.pts,"per game"],["REB",p.reb,"per game"],["AST",p.ast,"per game"],["FG%",`${p.fg}%`,"field goals"],["3PT%",`${p.threept}%`,"three-point"],["FT%",`${p.ft}%`,"free throws"]].map(([l,v,s])=>(
           <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div><div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{s}</div></div>
         ))}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12}}>
-        {[["GP",p.gp],["STL",p.stl],["BLK",p.blk],["TO",p.to_]].map(([l,v])=>(
-          <div key={l} style={S.statCard}><div style={{...S.statVal,fontSize:20}}>{v}</div><div style={S.statLabel}>{l}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:24}}>
+        {[["STL",p.stl],["BLK",p.blk],["TO",p.to_],["+/-",p.plus_minus]].map(([l,v])=>(
+          <div key={l} style={S.statCard}><div style={{...S.statVal,fontSize:20,color:l==="+/-"?(v>0?"#4ade80":v<0?"#f87171":BRAND.gold):BRAND.gold}}>{v>0&&l==="+/-"?`+${v}`:v}</div><div style={S.statLabel}>{l}</div></div>
         ))}
+      </div>
+
+      {/* Game Log */}
+      <div style={S.card}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:14}}>📋 Game Log</div>
+        {loadingLogs?<div style={{textAlign:"center",padding:20,color:BRAND.textSecondary}}>Loading…</div>
+        :gameLogs.length===0?<div style={{textAlign:"center",color:BRAND.textSecondary,padding:20}}>No game stats recorded yet.</div>
+        :(
+          <div style={{overflowX:"auto"}}>
+            <table style={{...S.table,minWidth:620}}>
+              <thead><tr>
+                <th style={{...S.th,textAlign:"left",minWidth:100}}>Date</th>
+                <th style={{...S.th,textAlign:"left",minWidth:130}}>Opponent</th>
+                <th style={{...S.th,textAlign:"center"}}>Result</th>
+                <th style={{...S.th,textAlign:"center"}}>MIN</th>
+                <th style={{...S.th,textAlign:"center"}}>PTS</th>
+                <th style={{...S.th,textAlign:"center"}}>REB</th>
+                <th style={{...S.th,textAlign:"center"}}>AST</th>
+                <th style={{...S.th,textAlign:"center"}}>FG</th>
+                <th style={{...S.th,textAlign:"center"}}>3PT</th>
+                <th style={{...S.th,textAlign:"center"}}>FT</th>
+                <th style={{...S.th,textAlign:"center"}}>STL</th>
+                <th style={{...S.th,textAlign:"center"}}>BLK</th>
+                <th style={{...S.th,textAlign:"center"}}>TO</th>
+                <th style={{...S.th,textAlign:"center"}}>+/-</th>
+              </tr></thead>
+              <tbody>{gameLogs.map(gs=>{
+                const g=gs.games||{};
+                const won=g.us!=null&&g.them!=null&&g.us>g.them;
+                const fgStr=`${gs.fgm||0}/${gs.fga||0}`;
+                const tpStr=`${gs.tpm||0}/${gs.tpa||0}`;
+                const ftStr=`${gs.ftm||0}/${gs.fta||0}`;
+                const pm=gs.plus_minus||0;
+                return(
+                  <tr key={gs.id}>
+                    <td style={{...S.td,fontSize:12}}>{g.date||"—"}</td>
+                    <td style={{...S.td,fontSize:12,fontWeight:600}}>vs {g.opp||"—"}</td>
+                    <td style={{...S.td,textAlign:"center"}}>
+                      {g.us!=null&&g.them!=null?(
+                        <span style={{fontSize:11,fontWeight:700,color:won?"#4ade80":"#f87171",background:won?"#4ade8018":"#f8717118",padding:"2px 7px",borderRadius:4}}>
+                          {g.us}–{g.them} {won?"W":"L"}
+                        </span>
+                      ):"—"}
+                    </td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{gs.minutes||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:13,fontWeight:700,color:BRAND.gold}}>{gs.pts||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{gs.reb||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{gs.ast||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{fgStr}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{tpStr}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{ftStr}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{gs.stl||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12}}>{gs.blk||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12,color:"#f87171"}}>{gs.to_||0}</td>
+                    <td style={{...S.td,textAlign:"center",fontSize:12,fontWeight:700,color:pm>0?"#4ade80":pm<0?"#f87171":BRAND.textSecondary}}>{pm>0?`+${pm}`:pm}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
