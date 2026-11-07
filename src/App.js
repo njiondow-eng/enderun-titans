@@ -724,7 +724,7 @@ function AdminAttendance({players,readOnly=false}){
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Attendance Management</h1>
       <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:18}}>
-        {[["Total",players.length],["Present",players.filter(p=>marks[p.id]==="Present").length],["Late",players.filter(p=>marks[p.id]==="Late").length],["Absent",players.filter(p=>marks[p.id]==="Absent").length]].map(([l,v])=>(
+        {[["Total",players.length],["Present",players.filter(p=>marks[p.id]==="Present").length],["Late",players.filter(p=>marks[p.id]==="Late").length],["Excused",players.filter(p=>marks[p.id]==="Excused").length],["Absent",players.filter(p=>marks[p.id]==="Absent").length]].map(([l,v])=>(
           <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div></div>
         ))}
       </div>
