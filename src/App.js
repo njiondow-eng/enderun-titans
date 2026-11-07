@@ -1844,6 +1844,37 @@ function PlayerDashboard({player,players,setPage}){
         })()}
       </div>
 
+      {/* Team Leaders */}
+      {(()=>{
+        const active=players.filter(p=>p.status==="Active"&&p.gp>0);
+        if(active.length===0) return null;
+        const best=(field,fmt)=>{
+          const top=active.reduce((a,b)=>(parseFloat(b[field]||0)>parseFloat(a[field]||0)?b:a),active[0]);
+          return{name:top.name?.split(" ").slice(0,2).join(" ")||"—",val:fmt?fmt(top):parseFloat(top[field]||0)};
+        };
+        const leaders=[
+          {label:"SCORING LEADER",sub:"PPG",...best("pts")},
+          {label:"REBOUNDING LEADER",sub:"RPG",...best("reb")},
+          {label:"ASSISTS LEADER",sub:"APG",...best("ast")},
+          {label:"FG% LEADER",sub:"FG%",...best("fg",v=>`${parseFloat(v.fg||0)}%`)},
+        ];
+        return(
+          <div style={{...S.card,marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>⭐ Team Leaders</div>
+            <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:10}}>
+              {leaders.map(ldr=>(
+                <div key={ldr.label} style={{background:BRAND.charcoal,borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",color:BRAND.textSecondary,textTransform:"uppercase",marginBottom:6}}>{ldr.label}</div>
+                  <div style={{fontSize:26,fontWeight:800,color:BRAND.gold,lineHeight:1}}>{ldr.val}</div>
+                  <div style={{fontSize:10,color:BRAND.textSecondary,marginBottom:8}}>{ldr.sub}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:BRAND.textPrimary}}>{ldr.name}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Leagues & Tournaments */}
       {leagues.length>0&&(
       <div style={{...S.card,marginBottom:14}}>
