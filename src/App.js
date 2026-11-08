@@ -169,9 +169,98 @@ const Spinner=()=>(
 const BLANK_PLAYER={name:"",jersey:"",pos:"PG",yr:"",height:"",weight:"",dob:"",birthplace:"",nationality:"Filipino",course:"",phone:"",email:"",student_id:"",status:"Active",pts:0,reb:0,ast:0,fg:0,threept:0,ft:0,gp:0,stl:0,blk:0,to_:0,plus_minus:0,photo:""};
 
 // ── ROSTER ──
+function PlayerQuickStats({player:p,onClose,onFullProfile}){
+  const [gameLogs,setGameLogs]=useState([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{
+    supabase.from("game_stats").select("*,games(date,opp,us,them)").eq("player_id",p.id).order("game_id",{ascending:false}).then(({data})=>{setGameLogs(data||[]);setLoading(false);});
+  },[p.id]);
+  const pm=p.plus_minus||0;
+  return(
+    <Modal title="" onClose={onClose}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16,paddingBottom:14,borderBottom:`1px solid ${BRAND.border}`}}>
+        <Avatar initials={p.photo||"??"} size={56} color={BRAND.gold} photoUrl={p.photo_url||null}/>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:16}}>{p.name}</div>
+          <div style={{fontSize:12,color:BRAND.textSecondary}}>#{p.jersey} · {p.pos} · {p.yr}</div>
+          <span style={{...S.pill(p.status),marginTop:4,display:"inline-block",fontSize:10}}>{p.status}</span>
+        </div>
+        {onFullProfile&&<button onClick={onFullProfile} style={{...S.btn("secondary"),fontSize:11,padding:"5px 10px"}}>Full Profile →</button>}
+      </div>
+      {/* Season averages */}
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:8}}>Season Averages · {p.gp||0} GP</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
+        {[["PTS",p.pts,BRAND.gold],["REB",p.reb,BRAND.gold],["AST",p.ast,BRAND.gold],["FG%",`${p.fg}%`,BRAND.gold]].map(([l,v,c])=>(
+          <div key={l} style={{textAlign:"center",background:BRAND.charcoal,borderRadius:8,padding:"10px 6px"}}>
+            <div style={{fontSize:20,fontWeight:800,color:c}}>{v}</div>
+            <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:2}}>{l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
+        {[["3PT%",`${p.threept}%`],["FT%",`${p.ft}%`],["STL",p.stl],["BLK",p.blk],["TO",p.to_],["+/-",pm>0?`+${pm}`:pm]].slice(0,4).map(([l,v])=>(
+          <div key={l} style={{textAlign:"center",background:BRAND.charcoal,borderRadius:8,padding:"8px 6px"}}>
+            <div style={{fontSize:15,fontWeight:700,color:l==="+/-"?(pm>0?"#4ade80":pm<0?"#f87171":BRAND.textSecondary):BRAND.textPrimary}}>{v}</div>
+            <div style={{fontSize:10,color:BRAND.textSecondary,marginTop:1}}>{l}</div>
+          </div>
+        ))}
+      </div>
+      {/* Game log */}
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:8}}>Game Log</div>
+      {loading?<div style={{textAlign:"center",padding:12,color:BRAND.textSecondary,fontSize:12}}>Loading…</div>
+      :gameLogs.length===0?<div style={{textAlign:"center",color:BRAND.textSecondary,fontSize:12,padding:10}}>No game stats recorded yet.</div>
+      :(
+        <div style={{overflowX:"auto"}}>
+          <table style={{...S.table,minWidth:480,fontSize:12}}>
+            <thead><tr>
+              <th style={{...S.th,textAlign:"left"}}>Opponent</th>
+              <th style={{...S.th,textAlign:"center"}}>Result</th>
+              <th style={{...S.th,textAlign:"center"}}>MIN</th>
+              <th style={{...S.th,textAlign:"center",color:BRAND.gold}}>PTS</th>
+              <th style={{...S.th,textAlign:"center"}}>REB</th>
+              <th style={{...S.th,textAlign:"center"}}>AST</th>
+              <th style={{...S.th,textAlign:"center"}}>FG</th>
+              <th style={{...S.th,textAlign:"center"}}>3PT</th>
+              <th style={{...S.th,textAlign:"center"}}>STL</th>
+              <th style={{...S.th,textAlign:"center"}}>BLK</th>
+              <th style={{...S.th,textAlign:"center"}}>+/-</th>
+            </tr></thead>
+            <tbody>{gameLogs.map(gs=>{
+              const g=gs.games||{};
+              const won=g.us!=null&&g.them!=null&&g.us>g.them;
+              const gpm=gs.plus_minus||0;
+              return(
+                <tr key={gs.id}>
+                  <td style={{...S.td,fontWeight:600}}>vs {g.opp||"—"}</td>
+                  <td style={{...S.td,textAlign:"center"}}>
+                    {g.us!=null?(
+                      <span style={{fontSize:11,fontWeight:700,color:won?"#4ade80":"#f87171"}}>{g.us}–{g.them} {won?"W":"L"}</span>
+                    ):"—"}
+                  </td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.minutes||0}</td>
+                  <td style={{...S.td,textAlign:"center",fontWeight:700,color:BRAND.gold}}>{gs.pts||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.reb||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.ast||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.fgm||0}/{gs.fga||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.tpm||0}/{gs.tpa||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.stl||0}</td>
+                  <td style={{...S.td,textAlign:"center"}}>{gs.blk||0}</td>
+                  <td style={{...S.td,textAlign:"center",fontWeight:700,color:gpm>0?"#4ade80":gpm<0?"#f87171":BRAND.textSecondary}}>{gpm>0?`+${gpm}`:gpm}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function Roster({players,loadPlayers,loading,readOnly=false}){
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
+  const [quickView,setQuickView]=useState(null);
   const [showForm,setShowForm]=useState(false);
   const [editing,setEditing]=useState(null);
   const [form,setForm]=useState(BLANK_PLAYER);
@@ -258,7 +347,7 @@ function Roster({players,loadPlayers,loading,readOnly=false}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:14}}>
           {filtered.map(p=>(
             <div key={p.id} style={{...S.card,marginBottom:0,cursor:"pointer"}}
-              onClick={()=>setSelected(p)}
+              onClick={()=>setQuickView(p)}
               onMouseEnter={e=>e.currentTarget.style.borderColor=BRAND.crimson}
               onMouseLeave={e=>e.currentTarget.style.borderColor=BRAND.border}>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
@@ -279,13 +368,15 @@ function Roster({players,loadPlayers,loading,readOnly=false}){
                 ))}
               </div>
               {!readOnly&&<div style={{display:"flex",gap:8}} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>setSelected(p)} style={{...S.btn("secondary"),flex:1,padding:"6px",fontSize:12}}>👤 Profile</button>
                 <button onClick={()=>openEdit(p)} style={{...S.btn("secondary"),flex:1,padding:"6px",fontSize:12}}>✏️ Edit</button>
-                <button onClick={()=>deletePlayer(p.id)} style={{...S.btn("danger"),flex:1,padding:"6px",fontSize:12}}>🗑️ Remove</button>
+                <button onClick={()=>deletePlayer(p.id)} style={{...S.btn("danger"),padding:"6px 10px",fontSize:12}}>🗑️</button>
               </div>}
             </div>
           ))}
         </div>
       )}
+      {quickView&&<PlayerQuickStats player={quickView} onClose={()=>setQuickView(null)} onFullProfile={!readOnly?()=>{setSelected(quickView);setQuickView(null);}:null}/>}
       {showForm&&(
         <Modal title={editing?"Edit Player":"Add New Player"} onClose={()=>setShowForm(false)}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
