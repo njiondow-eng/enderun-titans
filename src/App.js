@@ -46,7 +46,8 @@ const ROLES = {
   ASSISTANT: "Assistant Coach",
   CONDITIONING_COACH: "Conditioning Coach",
 };
-const isAdmin = (role) => role === ROLES.HEAD_COACH || role === ROLES.TEAM_MANAGER;
+const isAdmin = (role) => role === ROLES.HEAD_COACH;
+const isTeamManager = (role) => role === ROLES.TEAM_MANAGER;
 const isConditioningCoach = (role) => role === ROLES.CONDITIONING_COACH;
 
 const INIT_PLAYERS = [
@@ -96,6 +97,19 @@ const CONDITIONING_NAV = [
   { id:"health", label:"Health Report", icon:"🏥" },
   { id:"schedule", label:"Schedule", icon:"📅" },
   { id:"practice", label:"Practice", icon:"🏋️" },
+  { id:"announcements", label:"Announcements", icon:"📢" },
+];
+
+const TEAM_MANAGER_NAV = [
+  { id:"dashboard", label:"Dashboard", icon:"🏠" },
+  { id:"roster", label:"Roster", icon:"👥" },
+  { id:"stats", label:"Statistics", icon:"📊" },
+  { id:"gamestats", label:"Game Stats", icon:"🎯" },
+  { id:"attendance", label:"Attendance", icon:"✅" },
+  { id:"practice", label:"Practice", icon:"🏋️" },
+  { id:"league", label:"League", icon:"🏆" },
+  { id:"health", label:"Health Report", icon:"🏥" },
+  { id:"playbook", label:"Playbook", icon:"📖" },
   { id:"announcements", label:"Announcements", icon:"📢" },
 ];
 
@@ -508,7 +522,7 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
   );
 }
 
-function AdminGameStats({players,loadPlayers}){
+function AdminGameStats({players,loadPlayers,readOnly=false}){
   const [games,setGames]=useState([]);
   const [selectedGame,setSelectedGame]=useState(null);
   const [existingStats,setExistingStats]=useState({});
@@ -692,9 +706,9 @@ function AdminGameStats({players,loadPlayers}){
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:11,color:BRAND.textSecondary}}>✓ = played this game</span>
-              <button onClick={saveStats} disabled={saving} style={{...S.btn("primary"),padding:"8px 20px",opacity:saving?0.6:1}}>
+              {!readOnly&&<button onClick={saveStats} disabled={saving} style={{...S.btn("primary"),padding:"8px 20px",opacity:saving?0.6:1}}>
                 {saving?"Saving…":saved?"✓ Saved!":"Save Stats"}
-              </button>
+              </button>}
             </div>
           </div>
           <div style={{overflowX:"auto"}}>
@@ -731,11 +745,11 @@ function AdminGameStats({players,loadPlayers}){
               })}</tbody>
             </table>
           </div>
-          <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
+          {!readOnly&&<div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
             <button onClick={saveStats} disabled={saving} style={{...S.btn("primary"),padding:"9px 28px",opacity:saving?0.6:1}}>
               {saving?"Saving…":saved?"✓ Stats Saved!":"💾 Save & Update Averages"}
             </button>
-          </div>
+          </div>}
         </div>
         </>);
       })()}
@@ -2707,7 +2721,7 @@ export default function App(){
           playerData=pl;
         }
         setRole(r); setCurrentPlayer(playerData); setLoggedIn(true);
-        setPage(isAdmin(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard");
+        setPage(isAdmin(r)||isTeamManager(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard");
         return true;
       }catch(e){ return false; }
     };
@@ -2735,7 +2749,7 @@ export default function App(){
     if(loggedIn){ seedIfEmpty().then(()=>loadPlayers()); }
   },[loggedIn]);
 
-  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard"); };
+  const handleLogin=(r,pl)=>{ setRole(r); setCurrentPlayer(pl); setLoggedIn(true); setPage(isAdmin(r)||isTeamManager(r)?"dashboard":isConditioningCoach(r)?"conditioningdashboard":"playerdashboard"); };
   const handleLogout=async()=>{ await supabase.auth.signOut(); setLoggedIn(false); setRole(null); setCurrentPlayer(null); setPage("dashboard"); try{localStorage.removeItem("titans_page");}catch{} };
 
   if(authLoading) return(
@@ -2787,8 +2801,21 @@ export default function App(){
     announcements:<PlayerAnnouncements/>,
   };
 
-  const nav=isAdmin(role)?ADMIN_NAV:isConditioningCoach(role)?CONDITIONING_NAV:PLAYER_NAV;
-  const pages=isAdmin(role)?adminPages:isConditioningCoach(role)?conditioningPages:playerPages;
+  const teamManagerPages={
+    dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
+    roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading} readOnly={true}/>,
+    stats:<Statistics players={players}/>,
+    gamestats:<AdminGameStats players={players} loadPlayers={loadPlayers} readOnly={true}/>,
+    attendance:<AdminAttendance players={players} readOnly={true}/>,
+    practice:<Practice readOnly={true}/>,
+    league:<League readOnly={true}/>,
+    health:<AdminHealth players={players} readOnly={true}/>,
+    playbook:<Playbook isAdmin={false}/>,
+    announcements:<Announcements readOnly={true}/>,
+  };
+
+  const nav=isAdmin(role)?ADMIN_NAV:isTeamManager(role)?TEAM_MANAGER_NAV:isConditioningCoach(role)?CONDITIONING_NAV:PLAYER_NAV;
+  const pages=isAdmin(role)?adminPages:isTeamManager(role)?teamManagerPages:isConditioningCoach(role)?conditioningPages:playerPages;
 
   return(
     <MobileCtx.Provider value={isMobile}>
@@ -2837,7 +2864,7 @@ export default function App(){
           boxShadow:navOpen?"4px 0 20px rgba(0,0,0,0.4)":"none",
         }}>
           <div style={{padding:"6px 18px 12px",fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:BRAND.textSecondary}}>
-            {isAdmin(role)?"Admin Panel":isConditioningCoach(role)?"Conditioning":"Player Portal"}
+            {isAdmin(role)?"Admin Panel":isTeamManager(role)?"Team Manager":isConditioningCoach(role)?"Conditioning":"Player Portal"}
           </div>
           {nav.map(item=>(
             <div key={item.id} onClick={()=>{setPage(item.id);setNavOpen(false);}} style={S.navItem(page===item.id)}>
@@ -2845,7 +2872,7 @@ export default function App(){
               <span>{item.label}</span>
             </div>
           ))}
-          {isAdmin(role)&&!playersLoading&&(
+          {(isAdmin(role)||isTeamManager(role))&&!playersLoading&&(
             <div style={{padding:"16px 16px 8px",marginTop:10,borderTop:`1px solid ${BRAND.border}`}}>
               {[["Players",players.length],["Active",players.filter(p=>p.status==="Active").length]].map(([l,v])=>(
                 <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 4px"}}>
