@@ -50,7 +50,7 @@ export default function UserManager({ players }) {
 
   const loadUsers = async () => {
     setLoading(true);
-    const { data: profiles } = await supabase.from("user_profiles").select("*").order("created_at",{ascending:false});
+    const { data: profiles } = await supabase.from("user_profiles_with_email").select("*").order("created_at",{ascending:false});
     if (profiles) { setUsers(profiles); setActivity(profiles); }
     setLoading(false);
   };
