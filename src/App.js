@@ -1579,13 +1579,15 @@ function AdminDashboard({players,loading,setPage}){
 
   return(
     <div>
-      {/* 🏆 UNIGAMES compact badge */}
+      {/* 🏆 UNIGAMES compact badge — expires 2027-10-09 */}
+      {new Date()<new Date("2027-10-09T23:59:59")&&(
       <div style={{background:"linear-gradient(90deg,#1a0a00,#2d1a00,#1a0a00)",border:"1px solid #D4A017",borderRadius:8,padding:"7px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:16}}>🏆</span>
         <span style={{fontSize:12,fontWeight:800,color:"#D4A017",letterSpacing:"0.08em",textTransform:"uppercase"}}>27th UNIGAMES Champions 2026</span>
         <span style={{fontSize:12,color:"#aaa"}}>Men's Basketball · <span style={{color:"#4ade80",fontWeight:700}}>79</span>–<span style={{color:"#f87171"}}>74</span> vs CSA-Bacolod</span>
         <span style={{fontSize:14}}>👑</span>
       </div>
+      )}
       {/* Hero Banner */}
       <div style={{background:`linear-gradient(135deg,${BRAND.crimsonDark},${BRAND.charcoal})`,border:`1px solid ${BRAND.crimson}55`,borderRadius:12,padding:"20px 24px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
@@ -1854,13 +1856,15 @@ function PlayerDashboard({player,players,setPage}){
 
   return(
     <div style={{width:"100%"}}>
-      {/* 🏆 UNIGAMES compact badge */}
+      {/* 🏆 UNIGAMES compact badge — expires 2027-10-09 */}
+      {new Date()<new Date("2027-10-09T23:59:59")&&(
       <div style={{background:"linear-gradient(90deg,#1a0a00,#2d1a00,#1a0a00)",border:"1px solid #D4A017",borderRadius:8,padding:"7px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:16}}>🏆</span>
         <span style={{fontSize:12,fontWeight:800,color:"#D4A017",letterSpacing:"0.08em",textTransform:"uppercase"}}>27th UNIGAMES Champions 2026</span>
         <span style={{fontSize:12,color:"#aaa"}}>Men's Basketball · <span style={{color:"#4ade80",fontWeight:700}}>79</span>–<span style={{color:"#f87171"}}>74</span> vs CSA-Bacolod</span>
         <span style={{fontSize:14}}>👑</span>
       </div>
+      )}
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <div>
