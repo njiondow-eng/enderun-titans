@@ -607,17 +607,43 @@ function AdminGameStats({players,loadPlayers,readOnly=false}){
   const mob=useMobile();
   const statFields=[{k:"pts",l:"PTS",w:52},{k:"reb",l:"REB",w:52},{k:"ast",l:"AST",w:52},{k:"stl",l:"STL",w:52},{k:"blk",l:"BLK",w:52},{k:"to_",l:"TO",w:52},{k:"fgm",l:"FGM",w:52},{k:"fga",l:"FGA",w:52},{k:"tpm",l:"3PM",w:52},{k:"tpa",l:"3PA",w:52},{k:"ftm",l:"FTM",w:52},{k:"fta",l:"FTA",w:52},{k:"minutes",l:"MIN",w:52},{k:"plus_minus",l:"+/-",w:60}];
 
+  // Tournament grouping
+  const tournaments=[...new Set(games.map(g=>g.type||"Other"))];
+  const [activeTournament,setActiveTournament]=useState(null);
+  const activeTour=activeTournament||(tournaments[0]||"Other");
+  const filteredGames=games.filter(g=>(g.type||"Other")===activeTour);
+
   if(loading) return <div style={{color:BRAND.textSecondary,padding:24}}>Loading games…</div>;
   if(games.length===0) return <div style={{color:BRAND.textSecondary,padding:24}}>No completed games found. Enter game scores first.</div>;
 
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:16}}>📊 Game Stats Entry</h1>
+      {/* Tournament tabs */}
+      {tournaments.length>1&&(
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+          {tournaments.map(t=>{
+            const isAct=activeTour===t;
+            const tGames=games.filter(g=>(g.type||"Other")===t);
+            const wins=tGames.filter(g=>g.us>g.them).length;
+            return(
+              <button key={t} onClick={()=>{setActiveTournament(t);setSelectedGame(tGames[0]||null);}}
+                style={{padding:"8px 16px",border:`1px solid ${isAct?BRAND.gold:BRAND.border}`,borderRadius:20,cursor:"pointer",background:isAct?`${BRAND.gold}22`:"none",color:isAct?BRAND.gold:BRAND.textSecondary,fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1}}>
+                <span style={{letterSpacing:"0.06em",textTransform:"uppercase"}}>{t}</span>
+                <span style={{fontSize:10,color:isAct?"#D4A01799":BRAND.textSecondary,fontWeight:400}}>{wins}W–{tGames.length-wins}L · {tGames.length} games</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* Game selector */}
       <div style={S.card}>
-        <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:BRAND.textSecondary,marginBottom:10}}>Select Game</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
+          <div style={{fontSize:12,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:BRAND.textSecondary}}>Select Game</div>
+          {tournaments.length===1&&<div style={{fontSize:11,color:BRAND.gold,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase"}}>{activeTour}</div>}
+        </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {games.map(g=>{
+          {filteredGames.map(g=>{
             const isSel=selectedGame?.id===g.id;
             const won=g.us>g.them;
             return(
