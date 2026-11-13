@@ -73,6 +73,7 @@ const ADMIN_NAV = [
   { id:"practice", label:"Practice", icon:"🏋️" },
   { id:"league", label:"League", icon:"🏆" },
   { id:"health", label:"Health Report", icon:"🏥" },
+  { id:"scouting", label:"Scouting", icon:"🕵️" },
   { id:"playbook", label:"Playbook", icon:"📖" },
   { id:"announcements", label:"Announcements", icon:"📢" },
   { id:"users", label:"User Accounts", icon:"🔑" },
@@ -1070,6 +1071,362 @@ function Practice({readOnly=false}){
     </div>
   );
 }
+
+// ─── SCOUTING REPORT ────────────────────────────────────────────────────────
+const THREAT = ["Low","Medium","High","Star"];
+const THREAT_COLOR = {"Low":"#4ade80","Medium":"#fbbf24","High":"#f97316","Star":"#f43f5e"};
+const OFF_SCHEMES = ["Motion Offense","Pick & Roll","Isolation","Transition","Princeton","Swing","Flex","Triangle","Dribble Drive","Other"];
+const DEF_SCHEMES = ["Man-to-Man","Zone 2-3","Zone 3-2","Zone 1-3-1","Match-up Zone","Box & One","Triangle & Two","Other"];
+
+function ScoutingPage(){
+  const [reports,setReports]=useState([]);
+  const [games,setGames]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [view,setView]=useState("list"); // list | form | detail
+  const [selected,setSelected]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const mob=useMobile();
+
+  const blank=()=>({
+    id:null,opponent:"",game_id:"",report_date:new Date().toISOString().slice(0,10),
+    scout_name:"P. Noundou",overall_rating:3,summary:"",
+    off_strengths:"",off_weaknesses:"",off_scheme:"",off_pace:"",off_notes:"",
+    def_strengths:"",def_weaknesses:"",def_scheme:"",def_press:false,def_notes:"",
+    reb_notes:"",transition_notes:"",game_plan:"",adjustments:"",
+    key_players:[],
+  });
+  const [form,setForm]=useState(blank());
+
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("scouting_reports").select("*").order("report_date",{ascending:false}),
+      supabase.from("games").select("id,date,opp").order("date",{ascending:false}),
+    ]).then(([{data:r},{data:g}])=>{
+      setReports(r||[]); setGames(g||[]); setLoading(false);
+    });
+  },[]);
+
+  const F=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const addKeyPlayer=()=>setForm(f=>({...f,key_players:[...f.key_players,{name:"",number:"",position:"",threat_level:"Medium",notes:""}]}));
+  const setKP=(i,k,v)=>setForm(f=>{const kp=[...f.key_players];kp[i]={...kp[i],[k]:v};return{...f,key_players:kp};});
+  const removeKP=(i)=>setForm(f=>({...f,key_players:f.key_players.filter((_,idx)=>idx!==i)}));
+
+  const openNew=()=>{ setForm(blank()); setView("form"); };
+  const openEdit=(r)=>{ setForm({...r,game_id:r.game_id||""}); setView("form"); };
+  const openDetail=(r)=>{ setSelected(r); setView("detail"); };
+
+  const save=async()=>{
+    setSaving(true);
+    const payload={...form, game_id:form.game_id||null};
+    let err;
+    if(form.id){
+      ({error:err}=await supabase.from("scouting_reports").update(payload).eq("id",form.id));
+    } else {
+      ({error:err}=await supabase.from("scouting_reports").insert([payload]));
+    }
+    if(!err){
+      const {data:r}=await supabase.from("scouting_reports").select("*").order("report_date",{ascending:false});
+      setReports(r||[]);
+      setSaved(true); setTimeout(()=>setSaved(false),2500);
+      setView("list");
+    }
+    setSaving(false);
+  };
+
+  const del=async(id)=>{
+    if(!window.confirm("Supprimer ce rapport ?")) return;
+    await supabase.from("scouting_reports").delete().eq("id",id);
+    setReports(r=>r.filter(x=>x.id!==id));
+  };
+
+  const stars=(n)=>Array.from({length:5},(_,i)=>(
+    <span key={i} style={{fontSize:16,color:i<n?"#D4A017":"#333",cursor:"pointer"}} onClick={()=>F("overall_rating",i+1)}>★</span>
+  ));
+
+  const textarea=(label,key,rows=3)=>(
+    <div style={{marginBottom:14}}>
+      <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+      <textarea value={form[key]||""} onChange={e=>F(key,e.target.value)} rows={rows}
+        style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+    </div>
+  );
+  const input=(label,key,type="text")=>(
+    <div style={{marginBottom:14}}>
+      <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+      <input type={type} value={form[key]||""} onChange={e=>F(key,e.target.value)}
+        style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}/>
+    </div>
+  );
+  const sel=(label,key,opts)=>(
+    <div style={{marginBottom:14}}>
+      <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+      <select value={form[key]||""} onChange={e=>F(key,e.target.value)}
+        style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}>
+        <option value="">— Sélectionner —</option>
+        {opts.map(o=><option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+
+  const sectionTitle=(icon,title,color="#D4A017")=>(
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,marginTop:6,paddingBottom:6,borderBottom:`1px solid ${BRAND.border}`}}>
+      <span style={{fontSize:18}}>{icon}</span>
+      <span style={{fontSize:14,fontWeight:800,color,letterSpacing:"0.06em",textTransform:"uppercase"}}>{title}</span>
+    </div>
+  );
+
+  // ── LIST VIEW ──────────────────────────────────────────────────────────────
+  if(loading) return <div style={{padding:24,color:BRAND.textSecondary}}>Chargement…</div>;
+
+  if(view==="list") return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div>
+          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>🕵️ Scouting Reports</h1>
+          <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>Analyse des équipes adverses</div>
+        </div>
+        <button onClick={openNew} style={{...S.btn("primary"),padding:"9px 18px",fontSize:13}}>+ Nouveau rapport</button>
+      </div>
+
+      {reports.length===0?(
+        <div style={{...S.card,textAlign:"center",padding:40,color:BRAND.textSecondary}}>
+          <div style={{fontSize:40,marginBottom:12}}>🕵️</div>
+          <div style={{fontSize:15,fontWeight:600}}>Aucun rapport de scouting</div>
+          <div style={{fontSize:12,marginTop:4}}>Crée ton premier rapport pour analyser un adversaire</div>
+          <button onClick={openNew} style={{...S.btn("primary"),marginTop:16,padding:"9px 20px"}}>Commencer</button>
+        </div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {reports.map(r=>{
+            const threat=r.overall_rating;
+            const ratingColor=threat>=4?"#f43f5e":threat===3?"#f97316":threat===2?"#fbbf24":"#4ade80";
+            return(
+              <div key={r.id} style={{...S.card,padding:"14px 18px",cursor:"pointer",borderLeft:`4px solid ${ratingColor}`}} onClick={()=>openDetail(r)}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                  <div>
+                    <div style={{fontSize:16,fontWeight:800,color:BRAND.textPrimary}}>{r.opponent}</div>
+                    <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
+                      <span style={{fontSize:11,color:BRAND.textSecondary}}>📅 {r.report_date}</span>
+                      {r.off_scheme&&<span style={{fontSize:11,color:"#60a5fa"}}>⚔️ {r.off_scheme}</span>}
+                      {r.def_scheme&&<span style={{fontSize:11,color:"#f472b6"}}>🛡 {r.def_scheme}</span>}
+                      {r.key_players?.length>0&&<span style={{fontSize:11,color:BRAND.gold}}>⭐ {r.key_players.length} joueur(s) clé(s)</span>}
+                    </div>
+                    {r.summary&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:6,fontStyle:"italic"}}>"{r.summary.slice(0,120)}{r.summary.length>120?"…":""}"</div>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:11,color:BRAND.textSecondary}}>Niveau</div>
+                      <div style={{fontSize:20}}>{Array.from({length:r.overall_rating||0}).map((_,i)=><span key={i} style={{color:"#D4A017"}}>★</span>)}{Array.from({length:5-(r.overall_rating||0)}).map((_,i)=><span key={i} style={{color:"#333"}}>★</span>)}</div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <button onClick={e=>{e.stopPropagation();openEdit(r);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:11}}>✏️ Éditer</button>
+                      <button onClick={e=>{e.stopPropagation();del(r.id);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:11,color:"#f87171"}}>🗑</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── DETAIL VIEW ────────────────────────────────────────────────────────────
+  if(view==="detail"&&selected) return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Retour</button>
+        <div style={{flex:1}}>
+          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>🕵️ {selected.opponent}</h1>
+          <div style={{fontSize:11,color:BRAND.textSecondary}}>Rapport du {selected.report_date} · Scout : {selected.scout_name||"—"}</div>
+        </div>
+        <button onClick={()=>openEdit(selected)} style={{...S.btn("primary"),padding:"7px 16px",fontSize:12}}>✏️ Éditer</button>
+      </div>
+
+      {/* Rating + résumé */}
+      <div style={{...S.card,marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",marginBottom:10}}>
+          <div>
+            <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Niveau de menace</div>
+            <div>{Array.from({length:selected.overall_rating||0}).map((_,i)=><span key={i} style={{fontSize:22,color:"#D4A017"}}>★</span>)}{Array.from({length:5-(selected.overall_rating||0)}).map((_,i)=><span key={i} style={{fontSize:22,color:"#333"}}>★</span>)}</div>
+          </div>
+          {selected.off_scheme&&<div style={{background:"#1e3a5f",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#60a5fa",fontWeight:700}}>⚔️ {selected.off_scheme}</div>}
+          {selected.def_scheme&&<div style={{background:"#3b1a2e",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#f472b6",fontWeight:700}}>🛡 {selected.def_scheme}</div>}
+          {selected.def_press&&<div style={{background:"#422006",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#fb923c",fontWeight:700}}>⚡ Presse</div>}
+        </div>
+        {selected.summary&&<div style={{fontSize:13,color:BRAND.textPrimary,fontStyle:"italic",borderTop:`1px solid ${BRAND.border}`,paddingTop:10}}>"{selected.summary}"</div>}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12,marginBottom:12}}>
+        {/* Offence */}
+        <div style={S.card}>
+          {sectionTitle("⚔️","Attaque","#60a5fa")}
+          {selected.off_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ FORCES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_strengths}</div></>}
+          {selected.off_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ FAIBLESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_weaknesses}</div></>}
+          {selected.off_pace&&<div style={{fontSize:12,color:BRAND.textSecondary}}>⏱ Rythme : <span style={{color:BRAND.textPrimary,fontWeight:600}}>{selected.off_pace}</span></div>}
+          {selected.off_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:8,fontStyle:"italic"}}>{selected.off_notes}</div>}
+        </div>
+        {/* Défense */}
+        <div style={S.card}>
+          {sectionTitle("🛡","Défense","#f472b6")}
+          {selected.def_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ FORCES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_strengths}</div></>}
+          {selected.def_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ FAIBLESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_weaknesses}</div></>}
+          {selected.reb_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>🏀 Rebond : {selected.reb_notes}</div>}
+          {selected.transition_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>⚡ Transition : {selected.transition_notes}</div>}
+        </div>
+      </div>
+
+      {/* Joueurs clés */}
+      {selected.key_players?.length>0&&(
+        <div style={{...S.card,marginBottom:12}}>
+          {sectionTitle("⭐","Joueurs Clés","#D4A017")}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {selected.key_players.map((kp,i)=>(
+              <div key={i} style={{background:"#111",borderRadius:8,padding:"10px 14px",borderLeft:`3px solid ${THREAT_COLOR[kp.threat_level]||"#aaa"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <div style={{background:BRAND.crimson,borderRadius:"50%",width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:12}}>{kp.number||"?"}</div>
+                  <div style={{fontWeight:700,fontSize:14}}>{kp.name||"—"}</div>
+                  {kp.position&&<div style={{fontSize:11,color:BRAND.textSecondary,background:"#1a1a2a",borderRadius:4,padding:"2px 8px"}}>{kp.position}</div>}
+                  <div style={{fontSize:11,fontWeight:700,color:THREAT_COLOR[kp.threat_level]||"#aaa",marginLeft:"auto"}}>{kp.threat_level}</div>
+                </div>
+                {kp.notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:6,paddingLeft:38}}>{kp.notes}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Plan de match */}
+      {(selected.game_plan||selected.adjustments)&&(
+        <div style={S.card}>
+          {sectionTitle("📋","Plan de Match","#a78bfa")}
+          {selected.game_plan&&<><div style={{fontSize:11,color:"#a78bfa",fontWeight:700,marginBottom:4}}>STRATÉGIE</div><div style={{fontSize:13,whiteSpace:"pre-wrap",marginBottom:12}}>{selected.game_plan}</div></>}
+          {selected.adjustments&&<><div style={{fontSize:11,color:"#fbbf24",fontWeight:700,marginBottom:4}}>AJUSTEMENTS EN JEU</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{selected.adjustments}</div></>}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── FORM VIEW ──────────────────────────────────────────────────────────────
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Retour</button>
+        <h1 style={{fontSize:18,fontWeight:700,margin:0,flex:1}}>{form.id?"✏️ Modifier":"🕵️ Nouveau rapport"} — {form.opponent||"Adversaire"}</h1>
+        {saved&&<span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Sauvegardé</span>}
+        <button onClick={save} disabled={saving||!form.opponent} style={{...S.btn("primary"),padding:"9px 20px",opacity:(!form.opponent||saving)?0.5:1}}>
+          {saving?"Sauvegarde…":"💾 Sauvegarder"}
+        </button>
+      </div>
+
+      {/* Infos générales */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("📋","Informations générales")}
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:"0 16px"}}>
+          {input("Équipe adverse","opponent")}
+          {input("Date du rapport","report_date","date")}
+          {input("Scout","scout_name")}
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Lier à un match</label>
+          <select value={form.game_id||""} onChange={e=>F("game_id",e.target.value)}
+            style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}>
+            <option value="">— Aucun match lié —</option>
+            {games.map(g=><option key={g.id} value={g.id}>{g.date} · {g.opp}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Niveau de menace</label>
+          <div style={{display:"flex",gap:4}}>{stars(form.overall_rating||0)}</div>
+        </div>
+        {textarea("Résumé général","summary",2)}
+      </div>
+
+      {/* Attaque */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("⚔️","Analyse Offensive","#60a5fa")}
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
+          {sel("Système offensif","off_scheme",OFF_SCHEMES)}
+          {input("Rythme de jeu","off_pace")}
+        </div>
+        {textarea("✅ Forces offensives","off_strengths",3)}
+        {textarea("❌ Faiblesses offensives","off_weaknesses",3)}
+        {textarea("Notes supplémentaires","off_notes",2)}
+      </div>
+
+      {/* Défense */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("🛡","Analyse Défensive","#f472b6")}
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
+          {sel("Système défensif","def_scheme",DEF_SCHEMES)}
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Presse / Trap</label>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+              <input type="checkbox" checked={form.def_press||false} onChange={e=>F("def_press",e.target.checked)} style={{width:16,height:16}}/>
+              <span style={{fontSize:13}}>Utilise la presse</span>
+            </label>
+          </div>
+        </div>
+        {textarea("✅ Forces défensives","def_strengths",3)}
+        {textarea("❌ Faiblesses défensives","def_weaknesses",3)}
+        {textarea("Notes supplémentaires","def_notes",2)}
+      </div>
+
+      {/* Rebond & Transition */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("🏀","Rebond & Transitions","#fbbf24")}
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
+          {textarea("Rebond offensif / défensif","reb_notes",2)}
+          {textarea("Jeu de transition","transition_notes",2)}
+        </div>
+      </div>
+
+      {/* Joueurs clés */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("⭐","Joueurs Clés","#D4A017")}
+        {form.key_players.map((kp,i)=>(
+          <div key={i} style={{background:"#111",borderRadius:8,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${THREAT_COLOR[kp.threat_level]||"#aaa"}`}}>
+            <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"60px 1fr 100px 120px 40px",gap:8,marginBottom:8}}>
+              <input placeholder="#" value={kp.number} onChange={e=>setKP(i,"number",e.target.value)}
+                style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13,textAlign:"center"}}/>
+              <input placeholder="Nom du joueur" value={kp.name} onChange={e=>setKP(i,"name",e.target.value)}
+                style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13}}/>
+              <input placeholder="Poste" value={kp.position} onChange={e=>setKP(i,"position",e.target.value)}
+                style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13}}/>
+              <select value={kp.threat_level} onChange={e=>setKP(i,"threat_level",e.target.value)}
+                style={{background:"#1a1a2a",border:`1px solid ${THREAT_COLOR[kp.threat_level]||BRAND.border}`,borderRadius:6,padding:"6px 8px",color:THREAT_COLOR[kp.threat_level]||BRAND.textPrimary,fontSize:13,fontWeight:700}}>
+                {THREAT.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <button onClick={()=>removeKP(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#f87171",fontSize:18}}>×</button>
+            </div>
+            <textarea placeholder="Notes sur ce joueur…" value={kp.notes} onChange={e=>setKP(i,"notes",e.target.value)} rows={2}
+              style={{width:"100%",background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+        ))}
+        <button onClick={addKeyPlayer} style={{...S.btn("secondary"),width:"100%",padding:"8px",fontSize:12,border:`1px dashed ${BRAND.border}`}}>
+          + Ajouter un joueur clé
+        </button>
+      </div>
+
+      {/* Plan de match */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("📋","Plan de Match","#a78bfa")}
+        {textarea("Stratégie globale (comment on les attaque, comment on se défend)","game_plan",4)}
+        {textarea("Ajustements en cours de match","adjustments",3)}
+      </div>
+
+      <div style={{display:"flex",justifyContent:"flex-end",gap:10,paddingBottom:40}}>
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"9px 20px"}}>Annuler</button>
+        <button onClick={save} disabled={saving||!form.opponent} style={{...S.btn("primary"),padding:"9px 24px",opacity:(!form.opponent||saving)?0.5:1}}>
+          {saving?"Sauvegarde…":"💾 Sauvegarder le rapport"}
+        </button>
+      </div>
+    </div>
+  );
+}
+// ─── END SCOUTING ────────────────────────────────────────────────────────────
 
 function League(){
   const [games,setGames]=useState([]);
@@ -2804,6 +3161,7 @@ export default function App(){
     practice:<Practice/>,
     league:<League/>,
     health:<AdminHealth players={players}/>,
+    scouting:<ScoutingPage/>,
     playbook:<Playbook isAdmin={true}/>,
     announcements:<Announcements/>,
     users:<UserManager players={players}/>,
