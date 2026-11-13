@@ -1135,7 +1135,7 @@ function ScoutingPage(){
   };
 
   const del=async(id)=>{
-    if(!window.confirm("Supprimer ce rapport ?")) return;
+    if(!window.confirm("Delete this report?")) return;
     await supabase.from("scouting_reports").delete().eq("id",id);
     setReports(r=>r.filter(x=>x.id!==id));
   };
@@ -1163,7 +1163,7 @@ function ScoutingPage(){
       <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
       <select value={form[key]||""} onChange={e=>F(key,e.target.value)}
         style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}>
-        <option value="">— Sélectionner —</option>
+        <option value="">— Select —</option>
         {opts.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
     </div>
@@ -1177,24 +1177,24 @@ function ScoutingPage(){
   );
 
   // ── LIST VIEW ──────────────────────────────────────────────────────────────
-  if(loading) return <div style={{padding:24,color:BRAND.textSecondary}}>Chargement…</div>;
+  if(loading) return <div style={{padding:24,color:BRAND.textSecondary}}>Loading…</div>;
 
   if(view==="list") return(
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div>
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>🕵️ Scouting Reports</h1>
-          <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>Analyse des équipes adverses</div>
+          <div style={{fontSize:12,color:BRAND.textSecondary,marginTop:2}}>Opponent team analysis</div>
         </div>
-        <button onClick={openNew} style={{...S.btn("primary"),padding:"9px 18px",fontSize:13}}>+ Nouveau rapport</button>
+        <button onClick={openNew} style={{...S.btn("primary"),padding:"9px 18px",fontSize:13}}>+ New Report</button>
       </div>
 
       {reports.length===0?(
         <div style={{...S.card,textAlign:"center",padding:40,color:BRAND.textSecondary}}>
           <div style={{fontSize:40,marginBottom:12}}>🕵️</div>
-          <div style={{fontSize:15,fontWeight:600}}>Aucun rapport de scouting</div>
-          <div style={{fontSize:12,marginTop:4}}>Crée ton premier rapport pour analyser un adversaire</div>
-          <button onClick={openNew} style={{...S.btn("primary"),marginTop:16,padding:"9px 20px"}}>Commencer</button>
+          <div style={{fontSize:15,fontWeight:600}}>No scouting reports yet</div>
+          <div style={{fontSize:12,marginTop:4}}>Create your first report to analyze an opponent</div>
+          <button onClick={openNew} style={{...S.btn("primary"),marginTop:16,padding:"9px 20px"}}>Get Started</button>
         </div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1210,17 +1210,17 @@ function ScoutingPage(){
                       <span style={{fontSize:11,color:BRAND.textSecondary}}>📅 {r.report_date}</span>
                       {r.off_scheme&&<span style={{fontSize:11,color:"#60a5fa"}}>⚔️ {r.off_scheme}</span>}
                       {r.def_scheme&&<span style={{fontSize:11,color:"#f472b6"}}>🛡 {r.def_scheme}</span>}
-                      {r.key_players?.length>0&&<span style={{fontSize:11,color:BRAND.gold}}>⭐ {r.key_players.length} joueur(s) clé(s)</span>}
+                      {r.key_players?.length>0&&<span style={{fontSize:11,color:BRAND.gold}}>⭐ {r.key_players.length} key player(s)</span>}
                     </div>
                     {r.summary&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:6,fontStyle:"italic"}}>"{r.summary.slice(0,120)}{r.summary.length>120?"…":""}"</div>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:11,color:BRAND.textSecondary}}>Niveau</div>
+                      <div style={{fontSize:11,color:BRAND.textSecondary}}>Threat Level</div>
                       <div style={{fontSize:20}}>{Array.from({length:r.overall_rating||0}).map((_,i)=><span key={i} style={{color:"#D4A017"}}>★</span>)}{Array.from({length:5-(r.overall_rating||0)}).map((_,i)=><span key={i} style={{color:"#333"}}>★</span>)}</div>
                     </div>
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                      <button onClick={e=>{e.stopPropagation();openEdit(r);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:11}}>✏️ Éditer</button>
+                      <button onClick={e=>{e.stopPropagation();openEdit(r);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:11}}>✏️ Edit</button>
                       <button onClick={e=>{e.stopPropagation();del(r.id);}} style={{...S.btn("secondary"),padding:"5px 12px",fontSize:11,color:"#f87171"}}>🗑</button>
                     </div>
                   </div>
@@ -1237,51 +1237,51 @@ function ScoutingPage(){
   if(view==="detail"&&selected) return(
     <div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Retour</button>
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Back</button>
         <div style={{flex:1}}>
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>🕵️ {selected.opponent}</h1>
-          <div style={{fontSize:11,color:BRAND.textSecondary}}>Rapport du {selected.report_date} · Scout : {selected.scout_name||"—"}</div>
+          <div style={{fontSize:11,color:BRAND.textSecondary}}>Report date: {selected.report_date} · Scout: {selected.scout_name||"—"}</div>
         </div>
-        <button onClick={()=>openEdit(selected)} style={{...S.btn("primary"),padding:"7px 16px",fontSize:12}}>✏️ Éditer</button>
+        <button onClick={()=>openEdit(selected)} style={{...S.btn("primary"),padding:"7px 16px",fontSize:12}}>✏️ Edit</button>
       </div>
 
-      {/* Rating + résumé */}
+      {/* Rating + summary */}
       <div style={{...S.card,marginBottom:12}}>
         <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap",marginBottom:10}}>
           <div>
-            <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Niveau de menace</div>
+            <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:4}}>Threat Level</div>
             <div>{Array.from({length:selected.overall_rating||0}).map((_,i)=><span key={i} style={{fontSize:22,color:"#D4A017"}}>★</span>)}{Array.from({length:5-(selected.overall_rating||0)}).map((_,i)=><span key={i} style={{fontSize:22,color:"#333"}}>★</span>)}</div>
           </div>
           {selected.off_scheme&&<div style={{background:"#1e3a5f",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#60a5fa",fontWeight:700}}>⚔️ {selected.off_scheme}</div>}
           {selected.def_scheme&&<div style={{background:"#3b1a2e",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#f472b6",fontWeight:700}}>🛡 {selected.def_scheme}</div>}
-          {selected.def_press&&<div style={{background:"#422006",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#fb923c",fontWeight:700}}>⚡ Presse</div>}
+          {selected.def_press&&<div style={{background:"#422006",borderRadius:20,padding:"4px 12px",fontSize:12,color:"#fb923c",fontWeight:700}}>⚡ Press</div>}
         </div>
         {selected.summary&&<div style={{fontSize:13,color:BRAND.textPrimary,fontStyle:"italic",borderTop:`1px solid ${BRAND.border}`,paddingTop:10}}>"{selected.summary}"</div>}
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12,marginBottom:12}}>
-        {/* Offence */}
+        {/* Offense */}
         <div style={S.card}>
-          {sectionTitle("⚔️","Attaque","#60a5fa")}
-          {selected.off_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ FORCES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_strengths}</div></>}
-          {selected.off_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ FAIBLESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_weaknesses}</div></>}
-          {selected.off_pace&&<div style={{fontSize:12,color:BRAND.textSecondary}}>⏱ Rythme : <span style={{color:BRAND.textPrimary,fontWeight:600}}>{selected.off_pace}</span></div>}
+          {sectionTitle("⚔️","Offense","#60a5fa")}
+          {selected.off_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ STRENGTHS</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_strengths}</div></>}
+          {selected.off_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ WEAKNESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.off_weaknesses}</div></>}
+          {selected.off_pace&&<div style={{fontSize:12,color:BRAND.textSecondary}}>⏱ Pace: <span style={{color:BRAND.textPrimary,fontWeight:600}}>{selected.off_pace}</span></div>}
           {selected.off_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:8,fontStyle:"italic"}}>{selected.off_notes}</div>}
         </div>
-        {/* Défense */}
+        {/* Defense */}
         <div style={S.card}>
-          {sectionTitle("🛡","Défense","#f472b6")}
-          {selected.def_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ FORCES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_strengths}</div></>}
-          {selected.def_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ FAIBLESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_weaknesses}</div></>}
-          {selected.reb_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>🏀 Rebond : {selected.reb_notes}</div>}
-          {selected.transition_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>⚡ Transition : {selected.transition_notes}</div>}
+          {sectionTitle("🛡","Defense","#f472b6")}
+          {selected.def_strengths&&<><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:3}}>✅ STRENGTHS</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_strengths}</div></>}
+          {selected.def_weaknesses&&<><div style={{fontSize:11,color:"#f87171",fontWeight:700,marginBottom:3}}>❌ WEAKNESSES</div><div style={{fontSize:13,marginBottom:10,whiteSpace:"pre-wrap"}}>{selected.def_weaknesses}</div></>}
+          {selected.reb_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>🏀 Rebounding: {selected.reb_notes}</div>}
+          {selected.transition_notes&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:4}}>⚡ Transition: {selected.transition_notes}</div>}
         </div>
       </div>
 
-      {/* Joueurs clés */}
+      {/* Key Players */}
       {selected.key_players?.length>0&&(
         <div style={{...S.card,marginBottom:12}}>
-          {sectionTitle("⭐","Joueurs Clés","#D4A017")}
+          {sectionTitle("⭐","Key Players","#D4A017")}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {selected.key_players.map((kp,i)=>(
               <div key={i} style={{background:"#111",borderRadius:8,padding:"10px 14px",borderLeft:`3px solid ${THREAT_COLOR[kp.threat_level]||"#aaa"}`}}>
@@ -1298,12 +1298,12 @@ function ScoutingPage(){
         </div>
       )}
 
-      {/* Plan de match */}
+      {/* Game Plan */}
       {(selected.game_plan||selected.adjustments)&&(
         <div style={S.card}>
-          {sectionTitle("📋","Plan de Match","#a78bfa")}
-          {selected.game_plan&&<><div style={{fontSize:11,color:"#a78bfa",fontWeight:700,marginBottom:4}}>STRATÉGIE</div><div style={{fontSize:13,whiteSpace:"pre-wrap",marginBottom:12}}>{selected.game_plan}</div></>}
-          {selected.adjustments&&<><div style={{fontSize:11,color:"#fbbf24",fontWeight:700,marginBottom:4}}>AJUSTEMENTS EN JEU</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{selected.adjustments}</div></>}
+          {sectionTitle("📋","Game Plan","#a78bfa")}
+          {selected.game_plan&&<><div style={{fontSize:11,color:"#a78bfa",fontWeight:700,marginBottom:4}}>STRATEGY</div><div style={{fontSize:13,whiteSpace:"pre-wrap",marginBottom:12}}>{selected.game_plan}</div></>}
+          {selected.adjustments&&<><div style={{fontSize:11,color:"#fbbf24",fontWeight:700,marginBottom:4}}>IN-GAME ADJUSTMENTS</div><div style={{fontSize:13,whiteSpace:"pre-wrap"}}>{selected.adjustments}</div></>}
         </div>
       )}
     </div>
@@ -1313,87 +1313,87 @@ function ScoutingPage(){
   return(
     <div>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Retour</button>
-        <h1 style={{fontSize:18,fontWeight:700,margin:0,flex:1}}>{form.id?"✏️ Modifier":"🕵️ Nouveau rapport"} — {form.opponent||"Adversaire"}</h1>
-        {saved&&<span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Sauvegardé</span>}
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"6px 14px",fontSize:12}}>← Back</button>
+        <h1 style={{fontSize:18,fontWeight:700,margin:0,flex:1}}>{form.id?"✏️ Edit":"🕵️ New Report"} — {form.opponent||"Opponent"}</h1>
+        {saved&&<span style={{fontSize:12,color:"#4ade80",fontWeight:700}}>✅ Saved</span>}
         <button onClick={save} disabled={saving||!form.opponent} style={{...S.btn("primary"),padding:"9px 20px",opacity:(!form.opponent||saving)?0.5:1}}>
-          {saving?"Sauvegarde…":"💾 Sauvegarder"}
+          {saving?"Saving…":"💾 Save"}
         </button>
       </div>
 
-      {/* Infos générales */}
+      {/* General Info */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("📋","Informations générales")}
+        {sectionTitle("📋","General Information")}
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:"0 16px"}}>
-          {input("Équipe adverse","opponent")}
-          {input("Date du rapport","report_date","date")}
+          {input("Opponent Team","opponent")}
+          {input("Report Date","report_date","date")}
           {input("Scout","scout_name")}
         </div>
         <div style={{marginBottom:14}}>
-          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Lier à un match</label>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Link to a Game</label>
           <select value={form.game_id||""} onChange={e=>F("game_id",e.target.value)}
             style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}>
-            <option value="">— Aucun match lié —</option>
+            <option value="">— No game linked —</option>
             {games.map(g=><option key={g.id} value={g.id}>{g.date} · {g.opp}</option>)}
           </select>
         </div>
         <div style={{marginBottom:14}}>
-          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Niveau de menace</label>
+          <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Threat Level</label>
           <div style={{display:"flex",gap:4}}>{stars(form.overall_rating||0)}</div>
         </div>
-        {textarea("Résumé général","summary",2)}
+        {textarea("Overall Summary","summary",2)}
       </div>
 
-      {/* Attaque */}
+      {/* Offense */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("⚔️","Analyse Offensive","#60a5fa")}
+        {sectionTitle("⚔️","Offensive Analysis","#60a5fa")}
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
-          {sel("Système offensif","off_scheme",OFF_SCHEMES)}
-          {input("Rythme de jeu","off_pace")}
+          {sel("Offensive System","off_scheme",OFF_SCHEMES)}
+          {input("Game Pace","off_pace")}
         </div>
-        {textarea("✅ Forces offensives","off_strengths",3)}
-        {textarea("❌ Faiblesses offensives","off_weaknesses",3)}
-        {textarea("Notes supplémentaires","off_notes",2)}
+        {textarea("✅ Offensive Strengths","off_strengths",3)}
+        {textarea("❌ Offensive Weaknesses","off_weaknesses",3)}
+        {textarea("Additional Notes","off_notes",2)}
       </div>
 
-      {/* Défense */}
+      {/* Defense */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("🛡","Analyse Défensive","#f472b6")}
+        {sectionTitle("🛡","Defensive Analysis","#f472b6")}
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
-          {sel("Système défensif","def_scheme",DEF_SCHEMES)}
+          {sel("Defensive System","def_scheme",DEF_SCHEMES)}
           <div style={{marginBottom:14}}>
-            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Presse / Trap</label>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Press / Trap</label>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
               <input type="checkbox" checked={form.def_press||false} onChange={e=>F("def_press",e.target.checked)} style={{width:16,height:16}}/>
-              <span style={{fontSize:13}}>Utilise la presse</span>
+              <span style={{fontSize:13}}>Uses press defense</span>
             </label>
           </div>
         </div>
-        {textarea("✅ Forces défensives","def_strengths",3)}
-        {textarea("❌ Faiblesses défensives","def_weaknesses",3)}
-        {textarea("Notes supplémentaires","def_notes",2)}
+        {textarea("✅ Defensive Strengths","def_strengths",3)}
+        {textarea("❌ Defensive Weaknesses","def_weaknesses",3)}
+        {textarea("Additional Notes","def_notes",2)}
       </div>
 
-      {/* Rebond & Transition */}
+      {/* Rebounding & Transition */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("🏀","Rebond & Transitions","#fbbf24")}
+        {sectionTitle("🏀","Rebounding & Transitions","#fbbf24")}
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:"0 16px"}}>
-          {textarea("Rebond offensif / défensif","reb_notes",2)}
-          {textarea("Jeu de transition","transition_notes",2)}
+          {textarea("Offensive / Defensive Rebounding","reb_notes",2)}
+          {textarea("Transition Game","transition_notes",2)}
         </div>
       </div>
 
-      {/* Joueurs clés */}
+      {/* Key Players */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("⭐","Joueurs Clés","#D4A017")}
+        {sectionTitle("⭐","Key Players","#D4A017")}
         {form.key_players.map((kp,i)=>(
           <div key={i} style={{background:"#111",borderRadius:8,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${THREAT_COLOR[kp.threat_level]||"#aaa"}`}}>
             <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"60px 1fr 100px 120px 40px",gap:8,marginBottom:8}}>
               <input placeholder="#" value={kp.number} onChange={e=>setKP(i,"number",e.target.value)}
                 style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13,textAlign:"center"}}/>
-              <input placeholder="Nom du joueur" value={kp.name} onChange={e=>setKP(i,"name",e.target.value)}
+              <input placeholder="Player Name" value={kp.name} onChange={e=>setKP(i,"name",e.target.value)}
                 style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13}}/>
-              <input placeholder="Poste" value={kp.position} onChange={e=>setKP(i,"position",e.target.value)}
+              <input placeholder="Position" value={kp.position} onChange={e=>setKP(i,"position",e.target.value)}
                 style={{background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:13}}/>
               <select value={kp.threat_level} onChange={e=>setKP(i,"threat_level",e.target.value)}
                 style={{background:"#1a1a2a",border:`1px solid ${THREAT_COLOR[kp.threat_level]||BRAND.border}`,borderRadius:6,padding:"6px 8px",color:THREAT_COLOR[kp.threat_level]||BRAND.textPrimary,fontSize:13,fontWeight:700}}>
@@ -1401,26 +1401,26 @@ function ScoutingPage(){
               </select>
               <button onClick={()=>removeKP(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#f87171",fontSize:18}}>×</button>
             </div>
-            <textarea placeholder="Notes sur ce joueur…" value={kp.notes} onChange={e=>setKP(i,"notes",e.target.value)} rows={2}
+            <textarea placeholder="Notes on this player…" value={kp.notes} onChange={e=>setKP(i,"notes",e.target.value)} rows={2}
               style={{width:"100%",background:"#1a1a2a",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"6px 8px",color:BRAND.textPrimary,fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
           </div>
         ))}
         <button onClick={addKeyPlayer} style={{...S.btn("secondary"),width:"100%",padding:"8px",fontSize:12,border:`1px dashed ${BRAND.border}`}}>
-          + Ajouter un joueur clé
+          + Add Key Player
         </button>
       </div>
 
-      {/* Plan de match */}
+      {/* Game Plan */}
       <div style={{...S.card,marginBottom:12}}>
-        {sectionTitle("📋","Plan de Match","#a78bfa")}
-        {textarea("Stratégie globale (comment on les attaque, comment on se défend)","game_plan",4)}
-        {textarea("Ajustements en cours de match","adjustments",3)}
+        {sectionTitle("📋","Game Plan","#a78bfa")}
+        {textarea("Overall Strategy (how we attack, how we defend)","game_plan",4)}
+        {textarea("In-game Adjustments","adjustments",3)}
       </div>
 
       <div style={{display:"flex",justifyContent:"flex-end",gap:10,paddingBottom:40}}>
-        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"9px 20px"}}>Annuler</button>
+        <button onClick={()=>setView("list")} style={{...S.btn("secondary"),padding:"9px 20px"}}>Cancel</button>
         <button onClick={save} disabled={saving||!form.opponent} style={{...S.btn("primary"),padding:"9px 24px",opacity:(!form.opponent||saving)?0.5:1}}>
-          {saving?"Sauvegarde…":"💾 Sauvegarder le rapport"}
+          {saving?"Saving…":"💾 Save Report"}
         </button>
       </div>
     </div>
