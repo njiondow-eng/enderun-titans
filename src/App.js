@@ -827,42 +827,122 @@ function Statistics({players}){
 
 function AdminAttendance({players,readOnly=false}){
   const mob=useMobile();
-  const [marks,setMarks]=useState(()=>Object.fromEntries(players.map(p=>[p.id,"Present"])));
   const _nowAtt=new Date();
   const _defTime=(()=>{let h=_nowAtt.getHours(),m=_nowAtt.getMinutes(),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;})();
+
+  const [marks,setMarks]=useState(()=>Object.fromEntries(players.map(p=>[p.id,"Present"])));
   const [session,setSession]=useState({date:_nowAtt.toISOString().split("T")[0],time:_defTime,type:"Practice"});
   const [history,setHistory]=useState([]);
+  const [practices,setPractices]=useState([]);
   const [saved,setSaved]=useState(false);
   const [loading,setLoading]=useState(false);
+  // Edit mode: holds the session_date+type being edited, and the existing row IDs
+  const [editSession,setEditSession]=useState(null); // {date,time,type,rows:[{id,player_id,status}]}
   const statuses=["Present","Late","Excused","Absent"];
   const colors={Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"};
 
-  useEffect(()=>{ loadHistory(); },[]);
+  useEffect(()=>{ loadAll(); },[]);
 
-  const loadHistory=async()=>{
+  const loadAll=async()=>{
     setLoading(true);
-    const {data}=await supabase.from("attendance").select("*").order("created_at",{ascending:false}).limit(50);
-    if(data) setHistory(data);
+    const [attRes,pracRes]=await Promise.all([
+      supabase.from("attendance").select("*").order("session_date",{ascending:false}).order("created_at",{ascending:false}).limit(200),
+      supabase.from("practices").select("*").order("date",{ascending:false}).limit(50)
+    ]);
+    if(attRes.data) setHistory(attRes.data);
+    if(pracRes.data) setPractices(pracRes.data);
     setLoading(false);
+  };
+
+  // Group history by session (date+type) for the past sessions list
+  const sessionGroups=Object.values(
+    history.reduce((acc,h)=>{
+      const key=`${h.session_date}||${h.session_type}`;
+      if(!acc[key]) acc[key]={date:h.session_date,time:h.session_time||"—",type:h.session_type,rows:[]};
+      acc[key].rows.push(h);
+      return acc;
+    },{})
+  ).sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Fill form from a practice record
+  const pickPractice=(practiceId)=>{
+    if(!practiceId){setSession(s=>({...s}));return;}
+    const p=practices.find(pr=>String(pr.id)===practiceId);
+    if(p) setSession({date:p.date,time:p.time||_defTime,type:p.type||"Practice"});
+  };
+
+  // Load an existing session into edit mode
+  const openEditSession=(grp)=>{
+    const editMarks=Object.fromEntries(players.map(p=>[p.id,"Present"]));
+    grp.rows.forEach(r=>{ editMarks[r.player_id]=r.status; });
+    setEditSession({date:grp.date,time:grp.time,type:grp.type,rows:grp.rows,marks:editMarks});
   };
 
   const saveSession=async()=>{
     const rows=players.map(p=>({player_id:p.id,session_date:session.date,session_time:session.time,session_type:session.type,status:marks[p.id]||"Present"}));
     await supabase.from("attendance").insert(rows);
-    setSaved(true); setTimeout(()=>setSaved(false),2000); loadHistory();
+    setSaved(true); setTimeout(()=>setSaved(false),2000); loadAll();
   };
+
+  const saveEditSession=async()=>{
+    if(!editSession) return;
+    // Update each existing row individually
+    await Promise.all(editSession.rows.map(r=>
+      supabase.from("attendance").update({status:editSession.marks[r.player_id]||"Present"}).eq("id",r.id)
+    ));
+    // If a player has no row in this session yet, insert them
+    const existingPlayerIds=new Set(editSession.rows.map(r=>r.player_id));
+    const newRows=players.filter(p=>!existingPlayerIds.has(p.id)).map(p=>({
+      player_id:p.id,session_date:editSession.date,session_time:editSession.time,session_type:editSession.type,status:editSession.marks[p.id]||"Present"
+    }));
+    if(newRows.length>0) await supabase.from("attendance").insert(newRows);
+    setEditSession(null);
+    loadAll();
+  };
+
+  const deleteSession=async(grp)=>{
+    if(!window.confirm(`Delete the entire attendance record for ${grp.date} · ${grp.type}?`)) return;
+    await Promise.all(grp.rows.map(r=>supabase.from("attendance").delete().eq("id",r.id)));
+    loadAll();
+  };
+
+  // Stats for currently staged marks
+  const countStatus=(s)=>players.filter(p=>marks[p.id]===s).length;
 
   return(
     <div>
       <h1 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Attendance Management</h1>
-      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(4,1fr)",gap:12,marginBottom:18}}>
-        {[["Total",players.length],["Present",players.filter(p=>marks[p.id]==="Present").length],["Late",players.filter(p=>marks[p.id]==="Late").length],["Excused",players.filter(p=>marks[p.id]==="Excused").length],["Absent",players.filter(p=>marks[p.id]==="Absent").length]].map(([l,v])=>(
+
+      {/* Summary stats */}
+      <div style={{display:"grid",gridTemplateColumns:mob?"repeat(2,1fr)":"repeat(5,1fr)",gap:12,marginBottom:18}}>
+        {[["Total",players.length],["Present",countStatus("Present")],["Late",countStatus("Late")],["Excused",countStatus("Excused")],["Absent",countStatus("Absent")]].map(([l,v])=>(
           <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l}</div></div>
         ))}
       </div>
+
+      {/* Take Attendance */}
       <div style={S.card}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,flexWrap:"wrap"}}>
           <span style={S.cardTitle}>Take Attendance</span>
+        </div>
+
+        {/* Practice picker */}
+        {practices.length>0&&(
+          <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,color:BRAND.textSecondary,whiteSpace:"nowrap"}}>📅 Load from practice:</span>
+            <select defaultValue="" onChange={e=>pickPractice(e.target.value)} style={{...S.input,flex:1,minWidth:220,maxWidth:400}}>
+              <option value="">— Select a scheduled practice —</option>
+              {practices.map(p=>(
+                <option key={p.id} value={p.id}>
+                  {p.date} · {p.time||""} · {p.type||"Practice"}{p.location?` @ ${p.location}`:""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Session fields */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
           <input type="date" value={session.date} onChange={e=>setSession(s=>({...s,date:e.target.value}))} style={{...S.input,width:160}}/>
           <select value={session.time} onChange={e=>setSession(s=>({...s,time:e.target.value}))} style={{...S.input,width:120}}>
             {["5:00 AM","5:30 AM","6:00 AM","6:30 AM","7:00 AM","7:30 AM","8:00 AM","8:30 AM","9:00 AM","9:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","1:00 PM","1:30 PM","2:00 PM","2:30 PM","3:00 PM","3:30 PM","4:00 PM","4:30 PM","5:00 PM","5:30 PM","6:00 PM","6:30 PM","7:00 PM","7:30 PM","8:00 PM"].map(t=><option key={t}>{t}</option>)}
@@ -872,6 +952,8 @@ function AdminAttendance({players,readOnly=false}){
           </select>
           {!readOnly&&<button onClick={saveSession} style={S.btn("gold")}>{saved?"✅ Saved!":"💾 Save Session"}</button>}
         </div>
+
+        {/* Player table */}
         <table style={S.table}>
           <thead><tr>
             <th style={S.th}>Player</th>
@@ -887,25 +969,71 @@ function AdminAttendance({players,readOnly=false}){
           ))}</tbody>
         </table>
       </div>
+
+      {/* Past Sessions — grouped, editable */}
       <div style={S.card}>
-        <div style={S.cardTitle}>Recent Sessions (Saved)</div>
-        {loading?<Spinner/>:history.length===0?<div style={{color:BRAND.textSecondary,textAlign:"center",padding:20}}>No sessions saved yet.</div>:(
+        <div style={S.cardTitle}>Past Sessions</div>
+        {loading?<Spinner/>:sessionGroups.length===0
+          ?<div style={{color:BRAND.textSecondary,textAlign:"center",padding:20}}>No sessions saved yet.</div>
+          :<div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+            {sessionGroups.slice(0,20).map(grp=>{
+              const present=grp.rows.filter(r=>r.status==="Present").length;
+              const late=grp.rows.filter(r=>r.status==="Late").length;
+              const absent=grp.rows.filter(r=>r.status==="Absent").length;
+              const excused=grp.rows.filter(r=>r.status==="Excused").length;
+              return(
+                <div key={grp.date+grp.type} style={{background:"#132236",border:"1px solid #1E3A5F",borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontWeight:700,fontSize:14,color:"#F0F4F8"}}>{grp.date}</div>
+                    <div style={{fontSize:12,color:BRAND.textSecondary}}>{grp.time} · {grp.type}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[["Present",present,"#4ade80"],["Late",late,"#facc15"],["Excused",excused,"#60a5fa"],["Absent",absent,"#f87171"]].map(([l,v,c])=>(
+                      <span key={l} style={{fontSize:12,background:"#0D1B2A",border:`1px solid ${c}33`,color:c,borderRadius:12,padding:"2px 10px"}}>{l}: {v}</span>
+                    ))}
+                  </div>
+                  {!readOnly&&(
+                    <div style={{display:"flex",gap:8,marginLeft:"auto"}}>
+                      <button onClick={()=>openEditSession(grp)} style={{...S.btn("gold"),fontSize:12,padding:"5px 14px"}}>✏️ Edit</button>
+                      <button onClick={()=>deleteSession(grp)} style={{...S.btn("danger"),fontSize:12,padding:"5px 14px"}}>🗑</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        }
+      </div>
+
+      {/* Edit Session Modal */}
+      {editSession&&(
+        <Modal title={`Edit Attendance — ${editSession.date} · ${editSession.type}`} onClose={()=>setEditSession(null)}>
+          <div style={{marginBottom:14,color:BRAND.textSecondary,fontSize:13}}>Change each player's status then save.</div>
           <table style={S.table}>
             <thead><tr>
-              <th style={S.th}>Date</th><th style={S.th}>Time</th><th style={S.th}>Type</th><th style={S.th}>Player</th><th style={S.th}>Status</th>
+              <th style={S.th}>Player</th>
+              {statuses.map(s=><th key={s} style={{...S.th,color:colors[s]}}>{s}</th>)}
             </tr></thead>
-            <tbody>{history.slice(0,20).map(h=>(
-              <tr key={h.id}>
-                <td style={S.td}>{h.session_date}</td>
-                <td style={S.td}>{h.session_time||"—"}</td>
-                <td style={S.td}>{h.session_type}</td>
-                <td style={S.td}>{players.find(p=>p.id===h.player_id)?.name||"—"}</td>
-                <td style={S.td}><span style={{...S.pill(h.status),color:{Present:"#4ade80",Late:"#facc15",Excused:"#60a5fa",Absent:"#f87171"}[h.status]}}>{h.status}</span></td>
+            <tbody>{players.map(p=>(
+              <tr key={p.id}>
+                <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:8}}><Avatar initials={p.photo||"??"} size={26}/>{p.name}</div></td>
+                {statuses.map(s=>(
+                  <td key={s} style={S.td}>
+                    <input type="radio" name={`edit-${p.id}`}
+                      checked={editSession.marks[p.id]===s}
+                      onChange={()=>setEditSession(es=>({...es,marks:{...es.marks,[p.id]:s}}))}
+                      style={{accentColor:colors[s],width:16,height:16,cursor:"pointer"}}/>
+                  </td>
+                ))}
               </tr>
             ))}</tbody>
           </table>
-        )}
-      </div>
+          <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+            <button onClick={()=>setEditSession(null)} style={S.btn("ghost")}>Cancel</button>
+            <button onClick={saveEditSession} style={S.btn("gold")}>💾 Save Changes</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
