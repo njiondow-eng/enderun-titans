@@ -2010,21 +2010,22 @@ function ConditioningDashboard({players,setPage}){
 // Bandeau "Recent Victory" — visible 7 jours après la victoire
 function RecentVictoryBanner({games}){
   if(!games||!games.length) return null;
-  const wins=(games).filter(g=>g.us!=null&&g.them!=null&&g.us>g.them);
-  if(!wins.length) return null;
-  // Dernière victoire (tri par date desc)
-  const last=[...wins].sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const played=(games).filter(g=>g.us!=null&&g.them!=null);
+  if(!played.length) return null;
+  // Dernier match joué (tri par date desc)
+  const last=[...played].sort((a,b)=>b.date.localeCompare(a.date))[0];
   const matchDate=new Date(last.date+"T00:00:00");
   const diffDays=Math.floor((new Date()-matchDate)/(1000*60*60*24));
   if(diffDays>7) return null;
   const daysLeft=7-diffDays;
-  const opp=last.opponent||last.them_name||"Opponent";
+  const opp=last.opp||"Opponent";
+  const isWin=last.us>last.them;
   return(
-    <div style={{marginTop:20,background:"linear-gradient(90deg,#0a1a0a,#122012,#0a1a0a)",border:"1px solid #4ade8055",borderRadius:8,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+    <div style={{marginTop:20,background:isWin?"linear-gradient(90deg,#0a1a0a,#122012,#0a1a0a)":"linear-gradient(90deg,#1a0a0a,#201212,#1a0a0a)",border:`1px solid ${isWin?"#4ade8055":"#f8717155"}`,borderRadius:8,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontSize:18}}>🏀</span>
         <div>
-          <span style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Recent Victory</span>
+          <span style={{fontSize:11,color:isWin?"#4ade80":"#f87171",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>{isWin?"Recent Victory":"Recent Game"}</span>
           <div style={{fontSize:13,color:"#F0E6D0",fontWeight:600}}>
             Titans <span style={{color:"#4ade80",fontWeight:800}}>{last.us}</span> – <span style={{color:"#f87171"}}>{last.them}</span> {opp}
           </div>
