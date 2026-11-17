@@ -1223,6 +1223,12 @@ function ScoutingPage(){
     def_strengths:"",def_weaknesses:"",def_scheme:"",def_press:false,def_notes:"",
     reb_notes:"",transition_notes:"",game_plan:"",adjustments:"",
     key_players:[],
+    opp_wins:null,opp_losses:null,
+    opp_efg_pct:null,opp_tov_pct:null,opp_orb_pct:null,opp_ft_rate:null,
+    titans_efg_pct:null,titans_tov_pct:null,titans_orb_pct:null,titans_ft_rate:null,
+    opp_ppg:null,opp_fg_pct:null,opp_3p_pct:null,opp_ft_pct:null,opp_3pa_rate:null,
+    opp_rpg:null,opp_apg:null,opp_spg:null,opp_bpg:null,opp_topg:null,
+    opp_paint_pts:null,opp_fastbreak_pts:null,opp_bench_pts:null,opp_pts_off_to:null,opp_second_chance:null,
   });
   const [form,setForm]=useState(blank());
 
@@ -1333,12 +1339,16 @@ function ScoutingPage(){
               <div key={r.id} style={{...S.card,padding:"14px 18px",cursor:"pointer",borderLeft:`4px solid ${ratingColor}`}} onClick={()=>openDetail(r)}>
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                   <div>
-                    <div style={{fontSize:16,fontWeight:800,color:BRAND.textPrimary}}>{r.opponent}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                      <div style={{fontSize:16,fontWeight:800,color:BRAND.textPrimary}}>{r.opponent}</div>
+                      {(r.opp_wins!=null||r.opp_losses!=null)&&<div style={{fontSize:12,fontWeight:700,color:"#38bdf8",background:"#0c1a2e",borderRadius:12,padding:"2px 10px"}}>{r.opp_wins??0}W – {r.opp_losses??0}L</div>}
+                    </div>
                     <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
                       <span style={{fontSize:11,color:BRAND.textSecondary}}>📅 {r.report_date}</span>
                       {r.off_scheme&&<span style={{fontSize:11,color:"#60a5fa"}}>⚔️ {r.off_scheme}</span>}
                       {r.def_scheme&&<span style={{fontSize:11,color:"#f472b6"}}>🛡 {r.def_scheme}</span>}
                       {r.key_players?.length>0&&<span style={{fontSize:11,color:BRAND.gold}}>⭐ {r.key_players.length} key player(s)</span>}
+                      {r.opp_ppg&&<span style={{fontSize:11,color:"#38bdf8"}}>📊 {r.opp_ppg} PPG</span>}
                     </div>
                     {r.summary&&<div style={{fontSize:12,color:BRAND.textSecondary,marginTop:6,fontStyle:"italic"}}>"{r.summary.slice(0,120)}{r.summary.length>120?"…":""}"</div>}
                   </div>
@@ -1423,6 +1433,89 @@ function ScoutingPage(){
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Statistics */}
+      {(selected.opp_ppg||selected.opp_efg_pct||selected.opp_fg_pct)&&(
+        <div style={{...S.card,marginBottom:12}}>
+          {sectionTitle("📊","Statistics — Four Factors & Averages","#38bdf8")}
+          {(selected.opp_efg_pct||selected.titans_efg_pct)&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>FOUR FACTORS COMPARISON</div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{background:"#111"}}>
+                      <th style={{...S.th,textAlign:"left"}}>Factor</th>
+                      <th style={{...S.th,textAlign:"center",color:"#f87171"}}>Opponent</th>
+                      <th style={{...S.th,textAlign:"center",color:"#4ade80"}}>Titans</th>
+                      <th style={{...S.th,textAlign:"center"}}>Edge</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      {label:"eFG%",ok:"opp_efg_pct",tk:"titans_efg_pct",hi:"titans"},
+                      {label:"TOV%",ok:"opp_tov_pct",tk:"titans_tov_pct",hi:"opp"},
+                      {label:"ORB%",ok:"opp_orb_pct",tk:"titans_orb_pct",hi:"titans"},
+                      {label:"FT Rate",ok:"opp_ft_rate",tk:"titans_ft_rate",hi:"titans"},
+                    ].map(({label,ok,tk,hi})=>{
+                      const ov=selected[ok],tv=selected[tk];
+                      const titansBetter=ov!=null&&tv!=null&&(hi==="titans"?tv>ov:tv<ov);
+                      const oppBetter=ov!=null&&tv!=null&&!titansBetter;
+                      return(
+                        <tr key={label} style={{borderBottom:`1px solid ${BRAND.border}`}}>
+                          <td style={{...S.td,fontWeight:700,color:BRAND.textSecondary}}>{label}</td>
+                          <td style={{...S.td,textAlign:"center",color:oppBetter?"#f87171":BRAND.textPrimary,fontWeight:oppBetter?700:400}}>{ov!=null?ov+"%":"—"}</td>
+                          <td style={{...S.td,textAlign:"center",color:titansBetter?"#4ade80":BRAND.textPrimary,fontWeight:titansBetter?700:400}}>{tv!=null?tv+"%":"—"}</td>
+                          <td style={{...S.td,textAlign:"center"}}>{titansBetter?"✅ Titans":oppBetter?"⚠️ Opp":"—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>OPPONENT AVERAGES PER GAME</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8,marginBottom:12}}>
+            {[
+              {label:"PPG",val:selected.opp_ppg},
+              {label:"FG%",val:selected.opp_fg_pct,pct:true},
+              {label:"3P%",val:selected.opp_3p_pct,pct:true},
+              {label:"FT%",val:selected.opp_ft_pct,pct:true},
+              {label:"3PA Rate",val:selected.opp_3pa_rate,pct:true},
+              {label:"RPG",val:selected.opp_rpg},
+              {label:"APG",val:selected.opp_apg},
+              {label:"SPG",val:selected.opp_spg},
+              {label:"BPG",val:selected.opp_bpg},
+              {label:"TOPG",val:selected.opp_topg},
+            ].filter(x=>x.val!=null).map(({label,val,pct})=>(
+              <div key={label} style={{background:"#111",borderRadius:8,padding:"8px",textAlign:"center"}}>
+                <div style={{fontSize:11,color:BRAND.textSecondary,marginBottom:2}}>{label}</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#38bdf8"}}>{val}{pct?"%":""}</div>
+              </div>
+            ))}
+          </div>
+          {(selected.opp_paint_pts||selected.opp_fastbreak_pts||selected.opp_bench_pts||selected.opp_pts_off_to||selected.opp_second_chance)&&(
+            <>
+              <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>SITUATIONAL POINTS</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:8}}>
+                {[
+                  {label:"Paint Points",val:selected.opp_paint_pts},
+                  {label:"Fast Break",val:selected.opp_fastbreak_pts},
+                  {label:"Bench Points",val:selected.opp_bench_pts},
+                  {label:"Off Turnovers",val:selected.opp_pts_off_to},
+                  {label:"2nd Chance",val:selected.opp_second_chance},
+                ].filter(x=>x.val!=null).map(({label,val})=>(
+                  <div key={label} style={{background:"#111",borderRadius:8,padding:"8px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:BRAND.textSecondary,marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#fbbf24"}}>{val}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1536,6 +1629,76 @@ function ScoutingPage(){
         <button onClick={addKeyPlayer} style={{...S.btn("secondary"),width:"100%",padding:"8px",fontSize:12,border:`1px dashed ${BRAND.border}`}}>
           + Add Key Player
         </button>
+      </div>
+
+      {/* Statistics */}
+      <div style={{...S.card,marginBottom:12}}>
+        {sectionTitle("📊","Statistics — Four Factors & Averages","#38bdf8")}
+        <div style={{fontSize:12,color:BRAND.textSecondary,marginBottom:12}}>Entrez les statistiques de l'adversaire (et les Titans pour comparaison). Laissez vide si inconnu.</div>
+
+        {/* Record */}
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr 1fr",gap:"0 16px"}}>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Wins</label>
+            <input type="number" value={form.opp_wins||""} onChange={e=>F("opp_wins",e.target.value?+e.target.value:null)}
+              style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:"#4ade80",fontSize:13,fontWeight:700,boxSizing:"border-box"}}/>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Losses</label>
+            <input type="number" value={form.opp_losses||""} onChange={e=>F("opp_losses",e.target.value?+e.target.value:null)}
+              style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:"#f87171",fontSize:13,fontWeight:700,boxSizing:"border-box"}}/>
+          </div>
+        </div>
+
+        {/* Four Factors */}
+        <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8,marginTop:4}}>FOUR FACTORS</div>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"1fr 1fr 1fr 1fr",gap:"0 16px"}}>
+          {[
+            {label:"eFG% (Opp)",key:"opp_efg_pct"},{label:"eFG% (Titans)",key:"titans_efg_pct"},
+            {label:"TOV% (Opp)",key:"opp_tov_pct"},{label:"TOV% (Titans)",key:"titans_tov_pct"},
+            {label:"ORB% (Opp)",key:"opp_orb_pct"},{label:"ORB% (Titans)",key:"titans_orb_pct"},
+            {label:"FT Rate (Opp)",key:"opp_ft_rate"},{label:"FT Rate (Titans)",key:"titans_ft_rate"},
+          ].map(({label,key})=>(
+            <div key={key} style={{marginBottom:14}}>
+              <label style={{display:"block",fontSize:11,color:key.startsWith("titans")?"#4ade8099":"#f8717199",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+              <input type="number" step="0.1" value={form[key]!=null?form[key]:""} onChange={e=>F(key,e.target.value!==""?+e.target.value:null)}
+                style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:BRAND.textPrimary,fontSize:13,boxSizing:"border-box"}}/>
+            </div>
+          ))}
+        </div>
+
+        {/* Averages per game */}
+        <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8,marginTop:4}}>AVERAGES PER GAME (ADVERSAIRE)</div>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:"0 16px"}}>
+          {[
+            {label:"PPG",key:"opp_ppg"},{label:"FG%",key:"opp_fg_pct"},{label:"3P%",key:"opp_3p_pct"},
+            {label:"FT%",key:"opp_ft_pct"},{label:"3PA Rate",key:"opp_3pa_rate"},
+            {label:"RPG",key:"opp_rpg"},{label:"APG",key:"opp_apg"},{label:"SPG",key:"opp_spg"},
+            {label:"BPG",key:"opp_bpg"},{label:"TOPG",key:"opp_topg"},
+          ].map(({label,key})=>(
+            <div key={key} style={{marginBottom:14}}>
+              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+              <input type="number" step="0.1" value={form[key]!=null?form[key]:""} onChange={e=>F(key,e.target.value!==""?+e.target.value:null)}
+                style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:"#38bdf8",fontSize:13,fontWeight:600,boxSizing:"border-box"}}/>
+            </div>
+          ))}
+        </div>
+
+        {/* Situational */}
+        <div style={{fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:"0.08em",marginBottom:8,marginTop:4}}>SITUATIONAL POINTS (ADVERSAIRE)</div>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:"0 16px"}}>
+          {[
+            {label:"Paint Pts",key:"opp_paint_pts"},{label:"Fast Break",key:"opp_fastbreak_pts"},
+            {label:"Bench Pts",key:"opp_bench_pts"},{label:"Off TO",key:"opp_pts_off_to"},
+            {label:"2nd Chance",key:"opp_second_chance"},
+          ].map(({label,key})=>(
+            <div key={key} style={{marginBottom:14}}>
+              <label style={{display:"block",fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</label>
+              <input type="number" step="0.1" value={form[key]!=null?form[key]:""} onChange={e=>F(key,e.target.value!==""?+e.target.value:null)}
+                style={{width:"100%",background:"#111",border:`1px solid ${BRAND.border}`,borderRadius:6,padding:"8px 10px",color:"#fbbf24",fontSize:13,fontWeight:600,boxSizing:"border-box"}}/>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Game Plan */}
