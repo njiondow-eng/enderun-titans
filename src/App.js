@@ -2469,6 +2469,7 @@ function PlayerDashboard({player,players,setPage}){
   const [leagues,setLeagues]=useState([]);
   const [attendance,setAttendance]=useState([]);
   const [announcements,setAnnouncements]=useState([]);
+  const [coachNotes,setCoachNotes]=useState([]);
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
@@ -2479,7 +2480,8 @@ function PlayerDashboard({player,players,setPage}){
       supabase.from("leagues").select("*").order("created_at",{ascending:false}),
       supabase.from("attendance").select("*").eq("player_id",player.id).order("created_at",{ascending:false}).limit(20),
       supabase.from("announcements").select("*").order("created_at",{ascending:false}).limit(3),
-    ]).then(([p,g,l,a,ann])=>{
+      supabase.from("coach_notes").select("*").eq("player_id",player.id),
+    ]).then(([p,g,l,a,ann,cn])=>{
       const _n=new Date();
       const todayStr=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,"0")}-${String(_n.getDate()).padStart(2,"0")}`;
       setPractices(p.data||[]);
@@ -2487,6 +2489,7 @@ function PlayerDashboard({player,players,setPage}){
       setLeagues(l.data||[]);
       setAttendance(a.data||[]);
       setAnnouncements(ann.data||[]);
+      setCoachNotes((cn.data||[]).filter(r=>r.note&&r.note.trim()));
       setLoading(false);
     });
   },[player.id]);
@@ -2700,6 +2703,33 @@ function PlayerDashboard({player,players,setPage}){
           );
         })}
       </div>
+      )}
+
+      {/* Coach's Notes */}
+      {coachNotes.length>0&&(
+        <div style={{...S.card,marginBottom:14,border:`1px solid rgba(251,191,36,0.25)`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,paddingBottom:10,borderBottom:`1px solid ${BRAND.border}`}}>
+            <span style={{fontSize:18}}>📋</span>
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:BRAND.gold,letterSpacing:.5}}>COACH'S DEVELOPMENT NOTES</div>
+              <div style={{fontSize:11,color:BRAND.textSecondary,marginTop:1}}>Personal feedback from your coaching staff</div>
+            </div>
+            <span style={{marginLeft:"auto",background:`${BRAND.gold}22`,color:BRAND.gold,borderRadius:12,padding:"3px 10px",fontSize:11,fontWeight:700}}>{coachNotes.length} areas</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {coachNotes.map((n,i)=>(
+              <div key={i} style={{background:"#111",borderRadius:10,padding:"12px 14px",borderLeft:`3px solid ${n.improved?"#4ade80":"#f87171"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                  <span style={{background:n.improved?"rgba(74,222,128,0.12)":"rgba(239,68,68,0.12)",color:n.improved?"#4ade80":"#f87171",border:`1px solid ${n.improved?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:16,padding:"3px 12px",fontSize:12,fontWeight:700}}>
+                    {n.improved?"✅ ":""}{n.weakness}
+                  </span>
+                  {n.improved&&<span style={{fontSize:11,color:"#4ade80",fontWeight:600}}>Improved!</span>}
+                </div>
+                <div style={{fontSize:13,color:"#d1d5db",lineHeight:1.6,fontStyle:"italic"}}>"{n.note}"</div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Announcements */}
