@@ -517,6 +517,16 @@ function AdminPlayerProfile({player:p,onBack,onEdit}){
               <div key={l} style={S.statCard}><div style={{...S.statVal,fontSize:20}}>{v}</div><div style={S.statLabel}>{l}</div></div>
             ))}
           </div>
+          {p.weaknesses&&p.weaknesses.length>0&&(
+            <div style={{...S.card,marginTop:16}}>
+              <div style={S.cardTitle}>⚠️ Areas to Develop</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+                {p.weaknesses.map((w,i)=>(
+                  <span key={i} style={{background:"rgba(239,68,68,0.15)",color:"#f87171",border:"1px solid rgba(239,68,68,0.3)",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600}}>{w}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2820,6 +2830,16 @@ function MyProfile({player,loadPlayers}){
                 <div key={l} style={S.statCard}><div style={S.statVal}>{v}</div><div style={S.statLabel}>{l} {s}</div></div>
               ))}
             </div>
+            {p.weaknesses&&p.weaknesses.length>0&&(
+              <div style={{...S.card,marginTop:16}}>
+                <div style={S.cardTitle}>⚠️ Areas to Develop</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+                  {p.weaknesses.map((w,i)=>(
+                    <span key={i} style={{background:"rgba(239,68,68,0.15)",color:"#f87171",border:"1px solid rgba(239,68,68,0.3)",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600}}>{w}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
