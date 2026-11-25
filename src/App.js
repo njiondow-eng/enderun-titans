@@ -67,6 +67,8 @@ const INIT_PLAYERS = [
 const ADMIN_NAV = [
   { id:"dashboard", label:"Dashboard", icon:"🏠" },
   { id:"roster", label:"Roster", icon:"👥" },
+  { id:"playerdev", label:"Player Dev", icon:"💪" },
+  { id:"schedule", label:"Schedule", icon:"📅" },
   { id:"stats", label:"Statistics", icon:"📊" },
   { id:"gamestats", label:"Game Stats", icon:"🎯" },
   { id:"attendance", label:"Attendance", icon:"✅" },
@@ -2735,7 +2737,15 @@ function MyProfile({player,loadPlayers}){
   const [photoFile,setPhotoFile]=useState(null);
   const [photoPreview,setPhotoPreview]=useState(null);
   const [uploadingPhoto,setUploadingPhoto]=useState(false);
+  const [coachNotes,setCoachNotes]=useState([]);
   const p=player;
+
+  useEffect(()=>{
+    if(!p?.id) return;
+    supabase.from("coach_notes").select("*").eq("player_id",p.id).then(({data})=>{
+      setCoachNotes((data||[]).filter(r=>r.note&&r.note.trim()));
+    });
+  },[p?.id]);
 
   const handlePhotoChange=e=>{
     const file=e.target.files[0];
@@ -2838,6 +2848,20 @@ function MyProfile({player,loadPlayers}){
                     <span key={i} style={{background:"rgba(239,68,68,0.15)",color:"#f87171",border:"1px solid rgba(239,68,68,0.3)",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600}}>{w}</span>
                   ))}
                 </div>
+              </div>
+            )}
+            {coachNotes.length>0&&(
+              <div style={{...S.card,marginTop:16}}>
+                <div style={S.cardTitle}>📝 Coach's Notes</div>
+                {coachNotes.map((n,i)=>(
+                  <div key={i} style={{borderBottom:i<coachNotes.length-1?`1px solid ${BRAND.border}`:"none",padding:"10px 0"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                      <span style={{background:"rgba(239,68,68,0.15)",color:"#f87171",border:"1px solid rgba(239,68,68,0.3)",borderRadius:16,padding:"2px 10px",fontSize:11,fontWeight:700}}>{n.weakness}</span>
+                      {n.improved&&<span style={{background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.3)",borderRadius:16,padding:"2px 10px",fontSize:11,fontWeight:700}}>✅ Improved</span>}
+                    </div>
+                    <div style={{fontSize:13,color:BRAND.textSecondary,fontStyle:"italic",paddingLeft:4}}>{n.note}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -3078,7 +3102,9 @@ function PlayerSchedule(){
   const [practices,setPractices]=useState([]);
   const [games,setGames]=useState([]);
   const [leagues,setLeagues]=useState([]);
-  const [tab,setTab]=useState("practices");
+  const [scSchedule,setScSchedule]=useState([]);
+  const [playerDevSchedule,setPlayerDevSchedule]=useState([]);
+  const [tab,setTab]=useState("sc");
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
@@ -3086,10 +3112,14 @@ function PlayerSchedule(){
       supabase.from("practices").select("*").order("date"),
       supabase.from("games").select("*").order("date"),
       supabase.from("leagues").select("*").order("created_at"),
-    ]).then(([p,g,l])=>{
+      supabase.from("sc_schedule").select("*").order("week_start").order("day_of_week"),
+      supabase.from("player_dev_schedule").select("*").order("week_start").order("day_of_week"),
+    ]).then(([p,g,l,sc,pd])=>{
       setPractices(p.data||[]);
       setGames(g.data||[]);
       setLeagues(l.data||[]);
+      setScSchedule(sc.data||[]);
+      setPlayerDevSchedule(pd.data||[]);
       setLoading(false);
     });
   },[]);
@@ -3127,9 +3157,10 @@ function PlayerSchedule(){
   const avgOpp=played.length?Math.round(played.reduce((s,g)=>s+g.them,0)/played.length):null;
 
   const TABS=[
+    {id:"sc",label:"💪 S&C",count:null},
+    {id:"playerdev",label:"🏀 Player Dev",count:null},
     {id:"practices",label:"🏋️ Practices",count:upcomingPractices.length},
-    {id:"games",label:"🏀 Games",count:games.length},
-    {id:"past",label:"📋 Past Practices",count:pastPractices.length},
+    {id:"games",label:"🎯 Games",count:games.length},
   ];
 
   const GameRow=({g,isPast})=>{
@@ -3181,6 +3212,70 @@ function PlayerSchedule(){
 
       {loading?<Spinner/>:(
         <>
+          {/* S&C TAB */}
+          {tab==="sc"&&(
+            <div>
+              <div style={{...S.card,marginBottom:16,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>💪 Strength & Conditioning Program</div>
+                <div style={{fontSize:12,color:BRAND.textSecondary}}>Nov 30 – Dec 18, 2026 · Weights Training + Explosiveness & Agility</div>
+              </div>
+              {["Monday","Tuesday","Wednesday","Thursday","Friday"].map(day=>{
+                const daySessions=[...new Set(scSchedule.filter(s=>s.day_of_week===day).map(s=>`${s.session_type} — ${s.group_target}`))];
+                if(!daySessions.length) return null;
+                return(
+                  <div key={day} style={{...S.card,marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:13,marginBottom:8,color:BRAND.gold}}>{day}</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {daySessions.map((s,i)=>(
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                          <span style={{width:8,height:8,borderRadius:"50%",background:BRAND.crimson,flexShrink:0}}/>
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{...S.card,marginTop:4,background:BRAND.charcoal,fontSize:12,color:BRAND.textSecondary}}>
+                📅 Weekend (Sat–Sun): OFF
+              </div>
+            </div>
+          )}
+
+          {/* PLAYER DEV TAB */}
+          {tab==="playerdev"&&(
+            <div>
+              <div style={{...S.card,marginBottom:16,background:"rgba(96,165,250,0.08)",border:"1px solid rgba(96,165,250,0.2)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🏀 Player Development Program</div>
+                <div style={{fontSize:12,color:BRAND.textSecondary}}>Nov 30 – Dec 18, 2026 · Skills + Drills + Plays</div>
+              </div>
+              {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map(day=>{
+                const daySessions=[...new Map(playerDevSchedule.filter(s=>s.day_of_week===day).map(s=>[s.focus,s])).values()];
+                if(!daySessions.length) return null;
+                return(
+                  <div key={day} style={{...S.card,marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:13,marginBottom:8,color:"#60a5fa"}}>{day}</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {daySessions.map((s,i)=>(
+                        <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13}}>
+                          <span style={{width:8,height:8,borderRadius:"50%",background:"#60a5fa",flexShrink:0,marginTop:4}}/>
+                          <div>
+                            <span style={{fontWeight:600}}>{s.focus}</span>
+                            {s.group_target&&s.group_target!=="Entire Team"&&<span style={{color:BRAND.textSecondary,fontSize:11}}> · {s.group_target}</span>}
+                            {s.coach&&<span style={{color:BRAND.gold,fontSize:11}}> · {s.coach}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{...S.card,marginTop:4,background:BRAND.charcoal,fontSize:12,color:BRAND.textSecondary}}>
+                📅 Sunday: OFF
+              </div>
+            </div>
+          )}
+
           {/* PRACTICES TAB */}
           {tab==="practices"&&(
             upcomingPractices.length===0
@@ -3283,6 +3378,111 @@ function PlayerSchedule(){
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function PlayerDevelopment({players}){
+  const mob=useMobile();
+  const [selected,setSelected]=useState(null);
+  const [notes,setNotes]=useState({}); // {weakness: {note, improved}}
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [loaded,setLoaded]=useState({});
+
+  const loadNotes=async(p)=>{
+    const{data}=await supabase.from("coach_notes").select("*").eq("player_id",p.id);
+    const map={};
+    (data||[]).forEach(r=>{ map[r.weakness]={note:r.note||"",improved:r.improved||false,id:r.id}; });
+    setNotes(map);
+    setLoaded(map);
+  };
+
+  const selectPlayer=p=>{ setSelected(p); loadNotes(p); setSaved(false); };
+
+  const saveNotes=async()=>{
+    if(!selected) return;
+    setSaving(true);
+    const rows=(selected.weaknesses||[]).map(w=>({
+      player_id:selected.id, weakness:w,
+      note:notes[w]?.note||"",
+      improved:notes[w]?.improved||false,
+      updated_at:new Date().toISOString()
+    }));
+    await supabase.from("coach_notes").upsert(rows,{onConflict:"player_id,weakness"});
+    setSaving(false); setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+
+  const active=players.filter(p=>p.status!=="Inactive");
+
+  return(
+    <div>
+      <h1 style={{fontSize:20,fontWeight:700,margin:"0 0 16px"}}>💪 Player Development</h1>
+      <div style={{display:"grid",gridTemplateColumns:mob?"1fr":selected?"280px 1fr":"1fr",gap:16}}>
+        {/* Player list */}
+        <div>
+          <div style={{fontSize:11,color:BRAND.textSecondary,fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Select Player</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {active.map(p=>(
+              <div key={p.id} onClick={()=>selectPlayer(p)} style={{...S.card,cursor:"pointer",border:selected?.id===p.id?`1px solid ${BRAND.crimson}`:`1px solid ${BRAND.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:12}}>
+                <Avatar initials={p.photo||"??"} size={36} photoUrl={p.photo_url||null}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name.split(" ").slice(-1)[0]}</div>
+                  <div style={{fontSize:11,color:BRAND.textSecondary}}>#{p.jersey} · {p.pos}</div>
+                </div>
+                {p.weaknesses?.length>0&&(
+                  <span style={{background:"rgba(239,68,68,0.15)",color:"#f87171",borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700}}>{p.weaknesses.length}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Notes panel */}
+        {selected&&(
+          <div>
+            <div style={{...S.card,marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <Avatar initials={selected.photo||"??"} size={48} photoUrl={selected.photo_url||null}/>
+                <div>
+                  <div style={{fontWeight:700,fontSize:16}}>{selected.name}</div>
+                  <div style={{fontSize:12,color:BRAND.textSecondary}}>#{selected.jersey} · {selected.pos}</div>
+                </div>
+              </div>
+              {(!selected.weaknesses||selected.weaknesses.length===0)&&(
+                <div style={{color:BRAND.textSecondary,fontSize:13,padding:"8px 0"}}>No weaknesses recorded for this player.</div>
+              )}
+              {(selected.weaknesses||[]).map(w=>(
+                <div key={w} style={{borderBottom:`1px solid ${BRAND.border}`,padding:"12px 0"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <span style={{background:"rgba(239,68,68,0.15)",color:"#f87171",border:"1px solid rgba(239,68,68,0.3)",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,flex:1}}>{w}</span>
+                    <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",whiteSpace:"nowrap"}}>
+                      <input type="checkbox" checked={notes[w]?.improved||false}
+                        onChange={e=>setNotes(n=>({...n,[w]:{...n[w],improved:e.target.checked}}))}
+                        style={{accentColor:"#4ade80",width:16,height:16}}/>
+                      <span style={{fontSize:12,color:notes[w]?.improved?"#4ade80":BRAND.textSecondary,fontWeight:600}}>Improved ✓</span>
+                    </label>
+                  </div>
+                  <textarea
+                    value={notes[w]?.note||""}
+                    onChange={e=>setNotes(n=>({...n,[w]:{...n[w],note:e.target.value}}))}
+                    placeholder="Coach notes for this area..."
+                    rows={2}
+                    style={{...S.input,resize:"vertical",fontSize:12,width:"100%",boxSizing:"border-box"}}
+                  />
+                </div>
+              ))}
+              {selected.weaknesses?.length>0&&(
+                <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"flex-end"}}>
+                  {saved&&<span style={{color:"#4ade80",fontSize:13,alignSelf:"center"}}>✅ Saved!</span>}
+                  <button onClick={saveNotes} disabled={saving} style={S.btn("gold")}>{saving?"Saving…":"💾 Save Notes"}</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3467,6 +3667,8 @@ export default function App(){
   const adminPages={
     dashboard:<AdminDashboard players={players} loading={playersLoading} setPage={setPage}/>,
     roster:<Roster players={players} loadPlayers={loadPlayers} loading={playersLoading}/>,
+    playerdev:<PlayerDevelopment players={players}/>,
+    schedule:<PlayerSchedule/>,
     stats:<Statistics players={players}/>,
     gamestats:<AdminGameStats players={players} loadPlayers={loadPlayers}/>,
     attendance:<AdminAttendance players={players}/>,
